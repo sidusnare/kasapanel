@@ -1,0 +1,6 @@
+
+AI has been trained almost exclusively on open source. Ethically, all rights, AI generated code should be automatically encumbered by the licenses of the code that generated it. While I can't make any corporation, AI platform, or government adopt such a policy, I can commit to a personal policy pertaining to what I generate with AI.
+
+All AI projects will be released GPL-3.
+All AI projects will be released with all available platform and prompt information to aid in reproducing, modifying, and collaborating development in the spirit of the open source community that started this in the first place.
+
