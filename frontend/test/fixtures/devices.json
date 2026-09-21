@@ -1,0 +1,34 @@
+{
+    "devices": [
+        {
+            "device_id": "host-d601a92033a1",
+            "host": "10.99.99.99",
+            "alias": "Bench plug",
+            "model": "",
+            "device_type": "",
+            "mac": "",
+            "added_at": "2026-07-28T21:27:05",
+            "source": "manual",
+            "enabled": true,
+            "notes": "",
+            "display_name": "Bench plug",
+            "state": {},
+            "schedule_enabled": true,
+            "rule_count": 1,
+            "schedule_problems": 0,
+            "next_runs": [
+                {
+                    "when": "2026-07-29T14:59",
+                    "line_number": 1,
+                    "command": "refresh"
+                },
+                {
+                    "when": "2026-07-29T15:00",
+                    "line_number": 1,
+                    "command": "refresh"
+                }
+            ],
+            "last_seen": "2026-07-29T14:54:54"
+        }
+    ]
+}

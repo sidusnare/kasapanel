@@ -1,0 +1,598 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
+ * see docs/ai-bom.spdx.json for the AI usage declaration.
+ *
+ * The panel is dressed like the enamelled control cabinet it stands in
+ * for: a sage-grey ground, hairline rules, engraved labels set in the
+ * utility face, and one energised green lamp per outlet.
+ */
+
+:root {
+  --enamel: #d7ddd4;
+  --panel: #f6f7f3;
+  --panel-sunk: #eceee7;
+  --ink: #191d1a;
+  --ink-soft: #5c645b;
+  --rule: #aeb6a8;
+  --rule-soft: #cbd1c6;
+  --live: #0f6b4f;
+  --live-glow: #3fbd8e;
+  --dormant: #7d857c;
+  --fault: #9d2727;
+  --attention: #9a7413;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --utility: ui-monospace, "SF Mono", "DejaVu Sans Mono", Menlo,
+      Consolas, monospace;
+  --spine: 5px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--enamel);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.mono, .table td.mono { font-family: var(--utility); }
+
+.engraved {
+  font-family: var(--utility);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 6px;
+}
+
+h1 { font-size: 22px; margin: 2px 0 10px; font-weight: 600; }
+
+.boot, .signin {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.plate {
+  width: min(380px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-top: var(--spine) solid var(--live);
+  padding: 22px 24px 26px;
+}
+
+.note { color: var(--ink-soft); font-size: 13px; margin: 0 0 18px; }
+
+.field { display: block; margin-bottom: 14px; }
+
+input[type="text"], input[type="password"], input[type="number"],
+select, textarea {
+  width: 100%;
+  background: var(--panel-sunk);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  font-family: var(--utility);
+  font-size: 14px;
+  padding: 9px 10px;
+}
+
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--live);
+  outline-offset: 1px;
+}
+
+button {
+  font-family: var(--utility);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 9px 14px;
+  border: 1px solid var(--rule);
+  background: var(--panel-sunk);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button:hover { background: #e3e7dd; }
+
+button.primary {
+  background: var(--live);
+  border-color: #0b5540;
+  color: #f2f7f3;
+}
+
+button.primary:hover { background: #12805e; }
+
+button.quiet { background: transparent; }
+
+button[disabled] { opacity: 0.45; cursor: default; }
+
+.alarm {
+  font-family: var(--utility);
+  font-size: 12px;
+  color: var(--fault);
+  border-left: 3px solid var(--fault);
+  padding-left: 8px;
+  margin: 14px 0 0;
+}
+
+/* ---------- shell ---------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  min-height: 100vh;
+}
+
+.rail {
+  background: #cdd4c9;
+  border-right: 1px solid var(--rule);
+  padding: 18px 0 18px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  font-family: var(--utility);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  margin: 0 0 22px;
+  padding: 0 18px;
+}
+
+.brand b { font-weight: 600; color: var(--live); }
+
+#nav { display: flex; flex-direction: column; }
+
+.tab {
+  border: 0;
+  border-left: var(--spine) solid transparent;
+  background: transparent;
+  text-align: left;
+  padding: 11px 18px;
+  color: var(--ink-soft);
+}
+
+.tab:hover { background: #c3cabe; }
+
+.tab.is-current {
+  border-left-color: var(--live);
+  color: var(--ink);
+  background: #d7ddd4;
+}
+
+.rail-foot { margin-top: auto; padding: 0 18px; }
+
+.rail-foot .mono { font-size: 13px; margin: 0 0 10px; }
+
+main { min-width: 0; padding: 0 0 40px; }
+
+.readouts {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: 14px 26px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+}
+
+.readout b {
+  display: block;
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout.right { margin-left: auto; }
+
+.view { padding: 22px 26px; }
+
+/* ---------- device cards ---------- */
+
+.grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: var(--spine) solid var(--dormant);
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.card.is-live { border-left-color: var(--live); }
+.card.is-fault { border-left-color: var(--fault); }
+.card.is-off { border-left-color: var(--dormant); }
+.card.is-disabled { opacity: 0.6; }
+
+.card-head { display: flex; gap: 12px; align-items: flex-start; }
+
+.card-name {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.card-sub {
+  font-family: var(--utility);
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin: 2px 0 0;
+}
+
+/* The rocker: the one flourish on the page.  It is a real two-position
+   switch with a lamp that lights when the outlet is energised. */
+
+.rocker {
+  margin-left: auto;
+  flex: none;
+  width: 62px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #9aa295;
+  background: linear-gradient(#e7eae2, #cfd5c9);
+  box-shadow: inset 0 1px 0 #fbfcf9, inset 0 -2px 3px rgba(0, 0, 0, 0.14);
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  overflow: hidden;
+}
+
+.rocker-face {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: 28px;
+  background: linear-gradient(#f4f6f1, #dfe4da);
+  border: 1px solid #a7af9f;
+  transition: transform 140ms ease;
+}
+
+.rocker[aria-pressed="true"] .rocker-face { transform: translateX(28px); }
+
+.rocker-lamp {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #93998f;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.rocker[aria-pressed="true"] .rocker-lamp {
+  right: auto;
+  left: 9px;
+  background: var(--live-glow);
+  box-shadow: 0 0 8px var(--live-glow);
+}
+
+.rocker[disabled] { opacity: 0.5; }
+
+.readings {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-family: var(--utility);
+  font-size: 12px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 10px;
+}
+
+.readings b {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.card .slider { display: grid; gap: 4px; }
+
+input[type="range"] { width: 100%; accent-color: var(--live); }
+
+.card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.state-word {
+  font-family: var(--utility);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.state-word.live { color: var(--live); }
+.state-word.fault { color: var(--fault); }
+.state-word.off { color: var(--dormant); }
+.state-word.warn { color: var(--attention); }
+
+/* ---------- shared blocks ---------- */
+
+.block {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.row input[type="text"] { width: auto; flex: 1 1 180px; }
+
+.split {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 220px minmax(0, 1fr) 260px;
+  align-items: start;
+}
+/* A warning that has to be read before anything on the page.  It spans
+   every column of the split and is the one place red is used at full
+   strength. */
+.banner-alarm {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--fault);
+  color: #fff;
+  border-left: var(--spine) solid #6b1414;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.banner-alarm strong {
+  font-family: var(--utility);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  margin-right: 6px;
+}
+
+/* Findings that are not urgent enough for the red banner but must not
+   be missed either.  It runs across the foot of the page. */
+.banner-warn {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px 16px 16px;
+  background: var(--panel);
+  border: 1px solid var(--attention);
+  border-left: var(--spine) solid var(--attention);
+}
+.banner-warn h3 { margin: 0 0 4px; color: var(--attention); }
+.banner-warn .note { margin: 0 0 10px; }
+.banner-warn .table { margin: 0; }
+
+/* Two-column variant, for views without a picker rail. */
+.split.two { grid-template-columns: minmax(0, 1fr) 300px; }
+
+.column {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: 14px 16px;
+}
+
+.picker { display: flex; flex-direction: column; }
+
+.picker button {
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+}
+
+.picker button.is-current {
+  border-left-color: var(--live);
+  background: var(--panel-sunk);
+}
+
+textarea {
+  min-height: 320px;
+  line-height: 1.6;
+  tab-size: 4;
+  white-space: pre;
+  resize: vertical;
+}
+
+.toggle-line {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.toggle-line input { accent-color: var(--live); }
+
+.findings { font-family: var(--utility); font-size: 12px; }
+
+.findings p { margin: 4px 0; }
+.findings .bad { color: var(--fault); }
+.findings .good { color: var(--live); }
+
+.ticks {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  font-family: var(--utility);
+  font-size: 12px;
+}
+
+.ticks li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-bottom: 1px dotted var(--rule-soft);
+  padding: 5px 0;
+  color: var(--ink-soft);
+}
+
+.ticks li b { color: var(--ink); font-weight: 600; }
+
+/* Three columns: when it fires, what it does, and which line said so.
+   The timestamp gets a fixed width so the commands line up under one
+   another, and the line number is pushed to the right edge. */
+.tick-when {
+  flex: 0 0 auto;
+  min-width: 9.5em;
+  color: var(--ink);
+  font-weight: 600;
+}
+.tick-command {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.tick-line {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* A narrow column cannot hold three across; stack them instead. */
+@media (max-width: 1100px) {
+  .ticks li { flex-wrap: wrap; gap: 2px 10px; }
+  .tick-when { min-width: 0; }
+  .tick-line { margin-left: 0; }
+}
+
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.table th {
+  font-family: var(--utility);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: middle;
+}
+
+.table td.actions { text-align: right; white-space: nowrap; }
+
+.table tr.level-error td { color: var(--fault); }
+.table tr.level-warning td { color: var(--attention); }
+
+.settings {
+  display: grid;
+  gap: 12px 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-bottom: 14px;
+}
+
+.setting span { display: block; }
+
+.setting .hint {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-family: var(--utility);
+}
+
+.badge {
+  font-family: var(--utility);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--attention);
+  color: var(--attention);
+  padding: 1px 5px;
+  margin-left: 6px;
+}
+
+.empty {
+  color: var(--ink-soft);
+  font-size: 14px;
+  border-left: 3px solid var(--rule);
+  padding-left: 12px;
+}
+
+/* ---------- toasts ---------- */
+
+.toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+}
+
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: var(--spine) solid var(--live);
+  padding: 9px 14px;
+  font-family: var(--utility);
+  font-size: 12px;
+  max-width: 380px;
+  animation: rise 160ms ease-out;
+}
+
+.toast.bad { border-left-color: var(--fault); }
+
+@keyframes rise {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .rocker-face { transition: none; }
+}
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 12px 0 0;
+  }
+  #nav { flex-direction: row; overflow-x: auto; }
+  .tab {
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+  .tab.is-current { border-left: 0; border-bottom-color: var(--live); }
+  .rail-foot {
+    margin: 10px 0 0;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .rail-foot .engraved, .rail-foot .mono { margin: 0; }
+  .split, .split.two { grid-template-columns: 1fr; }
+  .view, .readouts { padding: 14px 16px; }
+}

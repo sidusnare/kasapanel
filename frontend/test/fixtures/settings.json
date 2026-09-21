@@ -1,0 +1,97 @@
+{
+  "settings": {
+    "version": 1,
+    "state_dir": "/var/lib/kasapanel",
+    "listen_host": "127.0.0.1",
+    "listen_port": 9447,
+    "tls_certificate": "",
+    "tls_key": "",
+    "pam_service": "login",
+    "allowed_users": [],
+    "allowed_groups": [],
+    "session_minutes": 720,
+    "max_login_failures": 5,
+    "lockout_seconds": 300,
+    "poll_seconds": 30,
+    "discovery_seconds": 8,
+    "discovery_target": "255.255.255.255",
+    "command_timeout_seconds": 20,
+    "device_username": "",
+    "scheduler_enabled": true,
+    "history_limit": 500,
+    "log_level": "INFO",
+    "log_file": "",
+    "device_password_set": false,
+    "metrics_enabled": true
+  },
+  "paths": {
+    "config": "/tmp/kp/config.json",
+    "devices": "/var/lib/kasapanel/devices.json",
+    "device_dir": "/var/lib/kasapanel/devices",
+    "certificate": "/var/lib/kasapanel/tls/panel.crt",
+    "key": "/var/lib/kasapanel/tls/panel.key"
+  },
+  "restart_required_fields": [
+    "listen_host",
+    "listen_port",
+    "tls_certificate",
+    "tls_key",
+    "state_dir"
+  ],
+  "certificate": {
+    "path": "/var/lib/kasapanel/tls/panel.crt",
+    "subject": "panel.example.com",
+    "issuer": "Let's Encrypt R3",
+    "fingerprint": "b386eed1715c2045a1447fea7f44e42e1f9df8e31010038c7b68f0684761798",
+    "not_before": "2026-07-01T00:00:00+00:00",
+    "expires": "2026-10-28T19:58:18+00:00",
+    "self_signed": false,
+    "error": "",
+    "names": [
+      "panel.example.com"
+    ],
+    "watcher": {
+      "fingerprint": "b386ee",
+      "expires": "2026-10-28T19:58:18+00:00",
+      "watching": false,
+      "check_seconds": 3600,
+      "reloads": 2,
+      "last_error": ""
+    }
+  },
+  "file_checks": [
+    {
+      "purpose": "configuration",
+      "path": "/etc/kasapanel/config.json",
+      "directory": "/etc/kasapanel",
+      "source": "default",
+      "access": "write",
+      "exists": true,
+      "ok": true,
+      "problem": "",
+      "consequence": ""
+    },
+    {
+      "purpose": "log file",
+      "path": "/var/log/panel.log",
+      "directory": "/var/log",
+      "source": "configured",
+      "access": "write",
+      "exists": false,
+      "ok": false,
+      "problem": "the directory cannot be written, so the temporary file an atomic write needs cannot be created there",
+      "consequence": "the log cannot be written or recreated after rotation"
+    },
+    {
+      "purpose": "TLS key",
+      "path": "/etc/letsencrypt/live/panel/privkey.pem",
+      "directory": "/etc/letsencrypt/live/panel",
+      "source": "configured",
+      "access": "read",
+      "exists": true,
+      "ok": false,
+      "problem": "the file cannot be read",
+      "consequence": "a renewed certificate cannot be loaded"
+    }
+  ]
+}

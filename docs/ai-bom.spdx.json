@@ -1,0 +1,128 @@
+{
+  "@context": "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+  "@graph": [
+    {
+      "type": "CreationInfo",
+      "@id": "_:creationInfo",
+      "specVersion": "3.0.1",
+      "created": "2026-07-28T21:30:00Z",
+      "createdBy": [
+        "urn:spdx.dev:kasapanel:agent-contributors"
+      ],
+      "comment": "AI usage declaration for the kasapanel 1.0.0 source tree. Every source file in this repository carries an SPDX-FileContributor header pointing at this document. The software bill of materials for the same release is a separate SPDX 2.3 document at sbom.spdx.json."
+    },
+    {
+      "type": "Organization",
+      "spdxId": "urn:spdx.dev:kasapanel:agent-contributors",
+      "creationInfo": "_:creationInfo",
+      "name": "Kasa Panel contributors"
+    },
+    {
+      "type": "Organization",
+      "spdxId": "urn:spdx.dev:kasapanel:agent-anthropic",
+      "creationInfo": "_:creationInfo",
+      "name": "Anthropic PBC",
+      "externalIdentifier": [
+        {
+          "type": "ExternalIdentifier",
+          "externalIdentifierType": "urlScheme",
+          "identifier": "https://www.anthropic.com/"
+        }
+      ]
+    },
+    {
+      "type": "SpdxDocument",
+      "spdxId": "urn:spdx.dev:kasapanel:ai-bom-1.0.0",
+      "creationInfo": "_:creationInfo",
+      "name": "kasapanel-ai-bom-1.0.0",
+      "dataLicense": "https://spdx.org/licenses/CC0-1.0",
+      "profileConformance": [
+        "core",
+        "software",
+        "ai"
+      ],
+      "rootElement": [
+        "urn:spdx.dev:kasapanel:package-kasapanel"
+      ],
+      "element": [
+        "urn:spdx.dev:kasapanel:package-kasapanel",
+        "urn:spdx.dev:kasapanel:ai-claude",
+        "urn:spdx.dev:kasapanel:relationship-drafting",
+        "urn:spdx.dev:kasapanel:relationship-review",
+        "urn:spdx.dev:kasapanel:annotation-header-convention"
+      ]
+    },
+    {
+      "type": "software_Package",
+      "spdxId": "urn:spdx.dev:kasapanel:package-kasapanel",
+      "creationInfo": "_:creationInfo",
+      "name": "kasapanel",
+      "software_packageVersion": "1.0.0",
+      "software_primaryPurpose": "application",
+      "description": "Threaded HTTPS dashboard, control and scheduler daemon for python-kasa devices.",
+      "suppliedBy": "urn:spdx.dev:kasapanel:agent-contributors",
+      "software_downloadLocation": "NOASSERTION"
+    },
+    {
+      "type": "ai_AIPackage",
+      "spdxId": "urn:spdx.dev:kasapanel:ai-claude",
+      "creationInfo": "_:creationInfo",
+      "name": "Claude",
+      "software_packageVersion": "Opus 5",
+      "software_primaryPurpose": "model",
+      "description": "General purpose large language model used interactively as a coding assistant. It is a development-time tool only: no model, model weights, inference client, or network call to any model provider is part of the kasapanel package or of its runtime behaviour.",
+      "suppliedBy": "urn:spdx.dev:kasapanel:agent-anthropic",
+      "software_downloadLocation": "NOASSERTION",
+      "ai_typeOfModel": [
+        "transformer-based large language model"
+      ],
+      "ai_autonomyType": "no",
+      "ai_domain": [
+        "software engineering",
+        "technical documentation"
+      ],
+      "ai_useSensitivePersonalInformation": "no",
+      "ai_safetyRiskAssessment": "low",
+      "ai_informationAboutApplication": "Used through a chat interface to draft the Python modules, the browser assets, the unit tests, the packaging metadata and the documentation of kasapanel 1.0.0 from a natural-language specification supplied by the contributors. Every generated file was executed, linted against Google's pylintrc, exercised by the unit test suite, and smoke tested against a running instance before being accepted. The generated content is original to this project; the model was not asked to reproduce third-party code.",
+      "ai_informationAboutTraining": "noAssertion",
+      "ai_limitation": "Model output is not authoritative. Known risks that the review process is intended to catch: plausible but wrong API usage against python-kasa and PAM, security assumptions that do not hold on a particular host, cron edge cases around daylight saving transitions, and confident but unverified statements in prose. Reviewers should treat every line as ordinary unreviewed contribution rather than as tested library code.",
+      "ai_standardCompliance": [],
+      "ai_hyperparameter": [],
+      "ai_metric": [],
+      "comment": "The precise model build is recorded as reported by the interface at the time of the session. No fine-tuning, retrieval augmentation, or third-party model service other than the one named here was involved."
+    },
+    {
+      "type": "LifecycleScopedRelationship",
+      "spdxId": "urn:spdx.dev:kasapanel:relationship-drafting",
+      "creationInfo": "_:creationInfo",
+      "from": "urn:spdx.dev:kasapanel:package-kasapanel",
+      "relationshipType": "usesTool",
+      "to": [
+        "urn:spdx.dev:kasapanel:ai-claude"
+      ],
+      "scope": "build",
+      "completeness": "complete",
+      "comment": "All source files, browser assets, tests and documents in this release were drafted with the named model. There is no unassisted subset."
+    },
+    {
+      "type": "Relationship",
+      "spdxId": "urn:spdx.dev:kasapanel:relationship-review",
+      "creationInfo": "_:creationInfo",
+      "from": "urn:spdx.dev:kasapanel:package-kasapanel",
+      "relationshipType": "hasEvidence",
+      "to": [
+        "urn:spdx.dev:kasapanel:agent-contributors"
+      ],
+      "completeness": "complete",
+      "comment": "Human review and acceptance: the contributors ran pylint (10.00/10 against Google's pylintrc with missing-function-docstring re-enabled), the unit test suite, and an end-to-end smoke test over TLS with a real PAM sign-in before accepting the generated tree."
+    },
+    {
+      "type": "Annotation",
+      "spdxId": "urn:spdx.dev:kasapanel:annotation-header-convention",
+      "creationInfo": "_:creationInfo",
+      "subject": "urn:spdx.dev:kasapanel:package-kasapanel",
+      "annotationType": "other",
+      "statement": "Header convention used throughout the tree: each file carries SPDX-FileCopyrightText, SPDX-License-Identifier: GPL-3.0-or-later, and an SPDX-FileContributor line recording AI assistance and referring to docs/ai-bom.spdx.json. Files without a comment syntax (JSON) are covered by this document and by sbom.spdx.json instead of by an inline header."
+    }
+  ]
+}

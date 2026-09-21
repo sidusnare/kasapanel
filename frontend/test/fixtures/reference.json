@@ -1,0 +1,84 @@
+{
+  "actions": [
+    {
+      "name": "on",
+      "usage": "on",
+      "summary": "Switch the device on."
+    },
+    {
+      "name": "off",
+      "usage": "off",
+      "summary": "Switch the device off."
+    },
+    {
+      "name": "toggle",
+      "usage": "toggle",
+      "summary": "Invert the current state."
+    },
+    {
+      "name": "brightness",
+      "usage": "brightness <1-100>",
+      "summary": "Set brightness, in percent."
+    },
+    {
+      "name": "temperature",
+      "usage": "temperature <2500-6500>",
+      "summary": "Set white colour temperature, in kelvin."
+    },
+    {
+      "name": "colour",
+      "usage": "colour <hue> <saturation> <value>",
+      "summary": "Set hue 0-360, saturation 0-100, value 1-100."
+    },
+    {
+      "name": "led",
+      "usage": "led <on|off>",
+      "summary": "Switch the small status LED on the device."
+    },
+    {
+      "name": "refresh",
+      "usage": "refresh",
+      "summary": "Poll the device and record its state."
+    }
+  ],
+  "aliases": {
+    "color": "colour",
+    "color_temp": "temperature",
+    "colour_temp": "temperature",
+    "dim": "brightness",
+    "enable": "on",
+    "disable": "off",
+    "poll": "refresh"
+  },
+  "keywords": [
+    {
+      "name": "@annually",
+      "expands_to": "0 0 1 1 *"
+    },
+    {
+      "name": "@daily",
+      "expands_to": "0 0 * * *"
+    },
+    {
+      "name": "@hourly",
+      "expands_to": "0 * * * *"
+    },
+    {
+      "name": "@midnight",
+      "expands_to": "0 0 * * *"
+    },
+    {
+      "name": "@monthly",
+      "expands_to": "0 0 1 * *"
+    },
+    {
+      "name": "@weekly",
+      "expands_to": "0 0 * * 0"
+    },
+    {
+      "name": "@yearly",
+      "expands_to": "0 0 1 1 *"
+    }
+  ],
+  "example": "# One rule per line: <schedule> <action> [arguments]\n# Times use the daemon host clock, to the minute.\n\n# 0 6 * * mon-fri   on\n# 30 22 * * *       off\n# */30 * * * *      refresh\n"
+}

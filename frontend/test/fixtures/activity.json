@@ -1,0 +1,22 @@
+{
+    "activity": [
+        {
+            "id": 2,
+            "at": "2026-07-29T14:58:05",
+            "level": "info",
+            "source": "paneltest",
+            "device_id": "",
+            "device_name": "",
+            "message": "paneltest signed in"
+        },
+        {
+            "id": 1,
+            "at": "2026-07-29T14:58:02",
+            "level": "info",
+            "source": "daemon",
+            "device_id": "",
+            "device_name": "",
+            "message": "Kasa Panel started"
+        }
+    ]
+}

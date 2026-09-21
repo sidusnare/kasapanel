@@ -1,0 +1,11 @@
+{
+    "sessions": [
+        {
+            "username": "paneltest",
+            "created_at": "2026-07-29T14:58:05",
+            "last_seen": "2026-07-29T14:58:06",
+            "remote": "127.0.0.1",
+            "user_agent": "curl/8.5.0"
+        }
+    ]
+}

@@ -1,0 +1,117 @@
+# SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Install to /etc/systemd/system/kasapanel.service, then:
+#   systemctl daemon-reload && systemctl enable --now kasapanel
+#
+# The daemon runs in the foreground and lets systemd own restarts and
+# logging, which is why --daemonize is not used here.  No PIDFile= is
+# needed for the same reason; RuntimeDirectory below exists so that
+# --pidfile /run/kasapanel/kasapanel.pid works if you do want one, in a
+# directory the daemon account can write and therefore clean up.
+
+[Unit]
+Description=Kasa Panel: HTTPS dashboard and scheduler for Kasa devices
+Documentation=file:///usr/share/doc/kasapanel/README.md
+After=network-online.target
+Wants=network-online.target
+
+# The daemon exits non-zero if its privileged authentication helper
+# dies, so that systemd can start a whole, working daemon again.  If
+# something is killing the helper repeatedly, stop rather than restart
+# in a loop: five failures in five minutes and the unit stays down for
+# an administrator to look at.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/kasapanel --config /etc/kasapanel/config.json run
+
+# Rechecks the TLS certificate file and swaps a renewed one in without
+# restarting, so no session is lost.  Use it from a certbot deploy hook:
+#   systemctl reload kasapanel
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Covers both a crash and the deliberate exit after the helper dies.
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# Start as root.  The daemon separates its own privileges: it forks a
+# small helper that keeps root for PAM, binds the listening socket, and
+# then drops everything else to the account named by daemon_user in the
+# configuration (see the README).  Setting User= here instead would
+# leave PAM unable to read the shadow file, which is the whole problem
+# the helper exists to solve.
+User=root
+Group=root
+
+# ReadWritePaths, not StateDirectory or ConfigurationDirectory.  Those
+# look like the right directives and are the wrong ones here: systemd
+# resets the ownership and mode of the directories it manages on every
+# single start, to the unit's User=, which is root.  The daemon then
+# has to chown them back to its own account each time, so the two fight
+# over the same directories at every boot and the daemon loses whenever
+# it lacks CAP_CHOWN.  ReadWritePaths punches the same hole through
+# ProtectSystem=strict without touching ownership at all.
+#
+# Create them once, at install time, and the daemon takes it from there:
+#   install -d -o root -g root -m 0755 /etc/kasapanel
+#   install -d -o root -g root -m 0755 /var/lib/kasapanel
+#   install -d -o root -g root -m 0755 /var/log/kasapanel
+ReadWritePaths=/etc/kasapanel /var/lib/kasapanel
+ReadWritePaths=-/var/log/kasapanel
+
+# Runtime is safe to let systemd manage: it is recreated empty each
+# start, so there is no ownership to preserve and nothing to fight over.
+RuntimeDirectory=kasapanel
+RuntimeDirectoryMode=0755
+
+# The helper shares this cgroup, so stopping the unit stops it too.
+KillMode=control-group
+
+# NoNewPrivileges is safe here: the helper is root and reads the shadow
+# file directly, so PAM never needs to execute a setuid helper such as
+# unix_chkpwd.  It would have to be turned off only if the daemon were
+# run as an unprivileged user with no helper at all.
+NoNewPrivileges=yes
+
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+# @system-service includes @setuid (setgid, setgroups, setresuid and
+# the rest), which is what the daemon needs to drop privileges.
+SystemCallFilter=@system-service
+
+# CAP_SETUID and CAP_SETGID are needed to drop, CAP_CHOWN and
+# CAP_FOWNER to hand the files over first, and CAP_NET_BIND_SERVICE only
+# if listen_port is below 1024.
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE CAP_DAC_READ_SEARCH CAP_CHOWN CAP_FOWNER
+
+# The bounding set is a ceiling, not a grant: it says which capabilities
+# the process may hold, not which it does hold.  On some systems the
+# four below arrive in the permitted set without being effective, or do
+# not arrive at all, and the daemon then cannot become its own user.
+# Listing them as ambient puts them in the effective set for certain.
+# They do not survive the drop: changing away from uid 0 clears them,
+# and the daemon clears every set explicitly afterwards and logs what
+# is left.
+AmbientCapabilities=CAP_CHOWN CAP_FOWNER CAP_SETGID CAP_SETUID
+
+# Device discovery is a UDP broadcast, so the service needs the LAN.
+IPAddressAllow=localhost link-local multicast 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,49 @@
+{
+    "device_id": "host-d601a92033a1",
+    "schedule": "* * * * * refresh\n",
+    "schedule_enabled": true,
+    "summary": {
+        "valid": true,
+        "rule_count": 1,
+        "rules": [
+            {
+                "line_number": 1,
+                "text": "* * * * * refresh",
+                "schedule": "* * * * *",
+                "describes": "* * * * *",
+                "action": "refresh",
+                "arguments": [],
+                "command": "refresh",
+                "at_start": false
+            }
+        ],
+        "problems": [],
+        "next_runs": [
+            {
+                "when": "2026-07-29T14:59",
+                "line_number": 1,
+                "command": "refresh"
+            },
+            {
+                "when": "2026-07-29T15:00",
+                "line_number": 1,
+                "command": "refresh"
+            },
+            {
+                "when": "2026-07-29T15:01",
+                "line_number": 1,
+                "command": "refresh"
+            },
+            {
+                "when": "2026-07-29T15:02",
+                "line_number": 1,
+                "command": "refresh"
+            },
+            {
+                "when": "2026-07-29T15:03",
+                "line_number": 1,
+                "command": "refresh"
+            }
+        ]
+    }
+}

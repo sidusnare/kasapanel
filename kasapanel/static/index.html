@@ -1,0 +1,36 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
+see docs/ai-bom.spdx.json for the AI usage declaration.
+
+The interface is a React application; the sources live in frontend/src
+and are bundled into bundle.js.  Nothing here is inline, because the
+Content-Security-Policy the daemon sends allows scripts and styles only
+from this origin.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Kasa Panel</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="root">
+  <div class="boot">
+    <p class="mono">Contacting the daemon…</p>
+  </div>
+</div>
+<noscript>
+  <div class="boot">
+    <p class="mono">This panel needs JavaScript. The daemon also has a
+      JSON API under /api/ if you would rather script it.</p>
+  </div>
+</noscript>
+<script src="bundle.js" defer></script>
+</body>
+</html>

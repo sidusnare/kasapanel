@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+python-kasa>=0.7
+python-pam>=2.0
+cryptography>=41
+
+# python-pam 2.0.2 imports six but does not declare it, so installing it
+# on its own leaves a module that raises ModuleNotFoundError on import.
+six>=1.16
