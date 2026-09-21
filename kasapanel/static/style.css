@@ -173,6 +173,21 @@ button[disabled] { opacity: 0.45; cursor: default; }
 
 .rail-foot .mono { font-size: 13px; margin: 0 0 10px; }
 
+/* Sign out, with the versions engraved beside it like a rating plate. */
+.rail-foot-row { display: flex; gap: 10px; align-items: center; }
+
+.rail-foot .versions {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
 main { min-width: 0; padding: 0 0 40px; }
 
 .readouts {
@@ -309,6 +324,119 @@ main { min-width: 0; padding: 0 0 40px; }
 input[type="range"] { width: 100%; accent-color: var(--live); }
 
 .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* A schedule on hold is not a fault, so it takes the attention colour
+   rather than red, and only a hairline of it. */
+.snoozed {
+  font-size: 12px;
+  color: var(--attention);
+  border-left: 3px solid var(--attention);
+  padding-left: 8px;
+  margin: 0;
+}
+
+button.is-snoozed { color: var(--attention); border-color: var(--attention); }
+
+/* ---------- drop-down menu ---------- */
+
+.menu-holder { position: relative; }
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  min-width: 190px;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--live);
+  box-shadow: 0 6px 18px rgba(25, 29, 26, 0.16);
+}
+
+.menu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 7px 14px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 12px;
+}
+
+.menu button:hover, .menu button:focus-visible {
+  background: var(--panel-sunk);
+  outline-offset: -2px;
+}
+
+.menu .menu-rule { border-top: 1px solid var(--rule-soft); margin-top: 4px;
+  padding-top: 4px; }
+
+.menu .menu-resume { color: var(--live); font-weight: 600; }
+
+/* ---------- modal dialog ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(25, 29, 26, 0.38);
+}
+
+.modal.plate { width: min(460px, 100%); max-height: 100%; overflow: auto; }
+
+.modal h2 { margin: 0 0 12px; }
+
+.modal-actions { justify-content: flex-end; margin: 18px 0 0; }
+
+.snooze-check {
+  font-family: var(--utility);
+  font-size: 12px;
+  color: var(--live);
+  margin: -6px 0 14px;
+  min-height: 1.45em;
+}
+
+.snooze-check.bad { color: var(--fault); }
+
+.examples ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+}
+
+.examples li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  border-bottom: 1px dotted var(--rule-soft);
+  padding: 3px 0;
+  color: var(--ink-soft);
+}
+
+/* Examples are buttons that fill the field, dressed as plain text. */
+button.link {
+  flex: 0 0 11.5em;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--live);
+  text-decoration: underline dotted;
+}
+
+button.link:hover { background: transparent; color: var(--ink); }
 
 .state-word {
   font-family: var(--utility);
@@ -593,6 +721,7 @@ textarea {
     align-items: baseline;
   }
   .rail-foot .engraved, .rail-foot .mono { margin: 0; }
+  .rail-foot-row { margin-left: auto; }
   .split, .split.two { grid-template-columns: 1fr; }
   .view, .readouts { padding: 14px 16px; }
 }

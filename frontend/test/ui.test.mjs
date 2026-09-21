@@ -50,6 +50,18 @@ describe('sign in', () => {
     assert.deepEqual(app.errors, []);
   });
 
+  it('shows both versions beside the sign-out button', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    const row = app.document.querySelector('.rail-foot-row');
+    assert.ok(findByText(row, 'button', 'Sign out'),
+      'the versions should share a row with the sign-out button');
+    const versions = text(row.querySelector('.versions'));
+    assert.match(versions, /kasapanel 1\.7\.0/);
+    assert.match(versions, /python-kasa 0\.10\.2/);
+  });
+
   // The bug this suite exists for: a browser that refuses to keep the
   // Secure cookie, which is every browser behind a self-signed
   // certificate.  The panel has to work on the header alone.
@@ -93,6 +105,94 @@ describe('the panel', () => {
     assert.ok(sent, 'the rocker should send an action');
     assert.equal(sent.headers['X-Kasa-CSRF'], app.server.csrf,
       'writes must carry the CSRF token');
+  });
+
+  it('offers every snooze length from a menu beside the LED', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    const card = app.document.querySelector('.card');
+    const toggle = findByText(card, '.card-actions button', 'Snooze');
+    assert.ok(toggle, 'the card should carry a snooze menu');
+    assert.equal(card.querySelector('.menu'), null,
+      'the menu should start closed');
+    toggle.click();
+    await app.settle();
+
+    const items = [...card.querySelectorAll('.menu [role="menuitem"]')]
+      .map(text);
+    assert.deepEqual(items, ['5 minutes', '15 minutes', '30 minutes',
+      '1 hour', '3 hours', '6 hours', '12 hours', '1 day', '1 week',
+      'Custom…']);
+
+    findByText(card, '.menu button', '3 hours').click();
+    await app.settle();
+    const sent = app.server.calls.find(
+      (call) => call.pathname.endsWith('/snooze'));
+    assert.ok(sent, 'choosing a length should reach the daemon');
+    assert.equal(sent.method, 'POST');
+    assert.equal(sent.body.for, '3h');
+    assert.equal(sent.headers['X-Kasa-CSRF'], app.server.csrf);
+    assert.equal(card.querySelector('.menu'), null,
+      'the menu should close after a choice');
+    assert.match(text(card.querySelector('.snoozed')), /2026-07-29 16:55/);
+
+    // Once snoozed, the menu leads with the way back.
+    findByText(card, '.card-actions button', 'Snoozed').click();
+    await app.settle();
+    findByText(card, '.menu button', 'Resume schedule').click();
+    await app.settle();
+    const lifted = app.server.calls.find(
+      (call) => call.method === 'DELETE' && call.pathname.endsWith('/snooze'));
+    assert.ok(lifted, 'resuming should reach the daemon');
+    assert.equal(card.querySelector('.snoozed'), null);
+    assert.deepEqual(app.errors, []);
+  });
+
+  it('takes a custom snooze in systemd.time syntax', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    const card = app.document.querySelector('.card');
+    findByText(card, '.card-actions button', 'Snooze').click();
+    await app.settle();
+    findByText(card, '.menu button', 'Custom').click();
+    await app.settle();
+
+    const dialog = app.document.querySelector('[role="dialog"]');
+    assert.ok(dialog, 'Custom should open a dialog');
+    assert.match(text(dialog), /systemd\.time/);
+    const examples = [...dialog.querySelectorAll('.examples button')]
+      .map(text);
+    assert.ok(examples.includes('tomorrow 07:00'),
+      'the dialog should show worked examples');
+    const input = dialog.querySelector('input[name="snooze"]');
+    const submit = findByText(dialog, 'button[type="submit"]', 'Snooze');
+
+    // A mistake is explained before anything is sent.
+    set(app.window, input, 'soon');
+    await new Promise((resolve) => app.window.setTimeout(resolve, 300));
+    await app.settle();
+    assert.match(text(dialog.querySelector('.snooze-check')),
+      /not a time span/);
+    assert.ok(submit.disabled, 'a bad time must not be submittable');
+
+    // An example fills the field, and the preview says when.
+    findByText(dialog, '.examples button', 'tomorrow 07:00').click();
+    await new Promise((resolve) => app.window.setTimeout(resolve, 300));
+    await app.settle();
+    assert.equal(input.value, 'tomorrow 07:00');
+    assert.match(text(dialog.querySelector('.snooze-check')),
+      /Resumes 2026-07-30 07:00/);
+
+    submit.click();
+    await app.settle();
+    const sent = app.server.calls.find(
+      (call) => call.method === 'POST' && call.pathname.endsWith('/snooze'));
+    assert.equal(sent.body.for, 'tomorrow 07:00');
+    assert.equal(app.document.querySelector('[role="dialog"]'), null,
+      'the dialog should close once the snooze is set');
+    assert.deepEqual(app.errors, []);
   });
 
   it('fills the readouts from the dashboard', async () => {

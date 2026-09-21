@@ -12,6 +12,7 @@ import unittest
 from typing import Any, Dict, List
 from unittest import mock
 
+import kasapanel
 from kasapanel import api
 from kasapanel import app as app_lib
 from kasapanel import auth
@@ -350,6 +351,63 @@ class ApiTest(unittest.TestCase):
         self.assertTrue(response.payload['summary']['valid'])
         stored = self.app.devices.get_schedule(device_id)
         self.assertNotIn('@hourly', stored)
+
+    def test_snooze_round_trip(self):
+        """A snooze is set, shown on the device, and lifted."""
+        device_id = self.add_device()
+        self.request('PUT', f'/api/devices/{device_id}/schedule',
+                     {'schedule': '*/5 * * * * refresh\n'})
+        path = f'/api/devices/{device_id}/snooze'
+        snoozed = self.request('POST', path, {'for': '2h'})
+        self.assertEqual(snoozed.status, 200)
+        until = snoozed.payload['snoozed_until']
+        self.assertTrue(until)
+        device = snoozed.payload['device']
+        self.assertEqual(device['snoozed_until'], until)
+        # The next rule shown is the first one after the snooze.
+        self.assertGreaterEqual(device['next_runs'][0]['when'], until[:16])
+        lifted = self.request('DELETE', path)
+        self.assertTrue(lifted.payload['lifted'])
+        self.assertEqual(lifted.payload['device']['snoozed_until'], '')
+        again = self.request('DELETE', path)
+        self.assertFalse(again.payload['lifted'])
+
+    def test_a_bad_snooze_is_refused(self):
+        """A time that cannot be used is a 400 that says why."""
+        device_id = self.add_device()
+        response = self.request('POST', f'/api/devices/{device_id}/snooze',
+                                {'for': 'yesterday'})
+        self.assertEqual(response.status, 400)
+        self.assertIn('future', response.payload['error'])
+        self.assertEqual(
+            self.app.devices.device_document(device_id).get('snoozed_until'),
+            None)
+
+    def test_snooze_needs_the_csrf_token(self):
+        """Snoozing is a write like any other."""
+        device_id = self.add_device()
+        response = self.request('POST', f'/api/devices/{device_id}/snooze',
+                                {'for': '1h'}, csrf=False)
+        self.assertEqual(response.status, 403)
+
+    def test_snooze_check_does_not_store(self):
+        """The custom dialog can preview a time without setting it."""
+        device_id = self.add_device()
+        good = self.request('POST', '/api/snooze/check', {'for': '1d'})
+        self.assertTrue(good.payload['valid'])
+        self.assertTrue(good.payload['snoozed_until'])
+        bad = self.request('POST', '/api/snooze/check', {'for': 'soon'})
+        self.assertEqual(bad.status, 200)
+        self.assertFalse(bad.payload['valid'])
+        self.assertIn('soon', bad.payload['error'])
+        self.assertNotIn('snoozed_until',
+                         self.app.devices.device_document(device_id))
+
+    def test_dashboard_reports_versions(self):
+        """The footer shows which Kasa Panel and python-kasa are running."""
+        versions = self.request('GET', '/api/dashboard').payload['versions']
+        self.assertEqual(versions['kasapanel'], kasapanel.__version__)
+        self.assertIn('python_kasa', versions)
 
     def test_scan_marks_known_devices(self):
         """Scan results say which devices are already in the inventory."""

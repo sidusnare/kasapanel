@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from kasapanel import devicestore
 from kasapanel import kasabridge
 from kasapanel import schedule as schedule_lib
+from kasapanel import snooze as snooze_lib
 
 _LOG = logging.getLogger(__name__)
 
@@ -130,18 +131,22 @@ class Scheduler:
         return max(seconds + TICK_OFFSET_SECONDS, 0.5)
 
     def _device_entries(
-        self, record: devicestore.DeviceRecord
+        self, record: devicestore.DeviceRecord, moment: datetime.datetime
     ) -> List[schedule_lib.ScheduleEntry]:
         """Reads and parses the schedule script of one device.
 
         Args:
             record: The inventory record of the device.
+            moment: The minute being evaluated.
 
         Returns:
-            The parsed rules; problems are logged and skipped.
+            The parsed rules; problems are logged and skipped.  A
+            disabled or snoozed schedule has none.
         """
         document = self._store.device_document(record.device_id)
         if not document.get('schedule_enabled', True):
+            return []
+        if self._snoozed(record, document, moment):
             return []
         entries, problems = schedule_lib.parse_script(
             document.get('schedule', ''))
@@ -150,6 +155,32 @@ class Scheduler:
                          record.display_name, problem.line_number,
                          problem.message)
         return entries
+
+    def _snoozed(self, record: devicestore.DeviceRecord,
+                 document: Dict[str, Any],
+                 moment: datetime.datetime) -> bool:
+        """Says whether a device's schedule is snoozed for this minute.
+
+        A snooze that has run out is removed and the resumption noted,
+        once, so the activity log shows when the schedule came back.
+
+        Args:
+            record: The inventory record of the device.
+            document: The per-device document.
+            moment: The minute being evaluated.
+
+        Returns:
+            True when the rules must not run this minute.
+        """
+        if snooze_lib.active_until(document.get('snoozed_until'), moment):
+            return True
+        if document.get('snoozed_until') and self._store.unsnooze(
+                record.device_id, ended_by=moment):
+            _LOG.info('%s: schedule snooze ended', record.display_name)
+            self._activity.add(
+                'Schedule snooze ended; rules run again', source='schedule',
+                device_id=record.device_id, device_name=record.display_name)
+        return False
 
     def run_minute(self, moment: datetime.datetime) -> int:
         """Runs every rule that matches one minute.
@@ -174,7 +205,7 @@ class Scheduler:
         stamp = moment.isoformat(timespec='minutes')
         work = []
         for record in self._store.enabled_records():
-            for entry in self._device_entries(record):
+            for entry in self._device_entries(record, moment):
                 if not entry.expression.matches(moment):
                     continue
                 key = (record.device_id, entry.line_number)

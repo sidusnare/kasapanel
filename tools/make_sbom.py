@@ -25,10 +25,10 @@ import sys
 from typing import Any, Dict, List, Tuple
 
 PACKAGE_NAME = 'kasapanel'
-PACKAGE_VERSION = '1.6.2'
+PACKAGE_VERSION = '1.7.0'
 PACKAGE_LICENSE = 'GPL-3.0-or-later'
 DOCUMENT_NAMESPACE = (
-    'https://example.invalid/kasapanel/spdx/kasapanel-1.6.2')
+    'https://example.invalid/kasapanel/spdx/kasapanel-1.7.0')
 
 # Directories and files that are not part of what we ship.
 SKIP_DIRS = ('.git', '__pycache__', '.pytest_cache', 'build', 'dist',

@@ -19,6 +19,7 @@ stays testable without any smart plugs on the network.
 import asyncio
 import concurrent.futures
 import datetime
+import importlib.metadata
 import logging
 import threading
 from typing import Any, Awaitable, Dict, List, Optional
@@ -41,6 +42,25 @@ except ImportError:  # pragma: no cover
         """Stand-in used when python-kasa is not installed."""
 
     KASA_AVAILABLE = False
+
+
+def _kasa_version() -> str:
+    """Finds the installed python-kasa version.
+
+    Returns:
+        The version string, or an empty string when it is not installed.
+    """
+    if not KASA_AVAILABLE:
+        return ''
+    try:
+        return importlib.metadata.version('python-kasa')
+    except importlib.metadata.PackageNotFoundError:  # pragma: no cover
+        # A source checkout on the path has no distribution metadata.
+        import kasa  # pylint: disable=import-outside-toplevel
+        return str(getattr(kasa, '__version__', ''))
+
+
+KASA_VERSION = _kasa_version()
 
 # Errors a device call may raise that are not programming mistakes.
 DEVICE_ERRORS = (KasaException, OSError, asyncio.TimeoutError,

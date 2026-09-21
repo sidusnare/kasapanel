@@ -20,7 +20,8 @@ Built on [python-kasa](https://python-kasa.readthedocs.io/).
 ## What it does
 
 - **Panel** — one card per device with a rocker switch, brightness and
-  colour-temperature sliders where the device has them, and live readings.
+  colour-temperature sliders where the device has them, live readings, and
+  a menu to snooze the device's schedule.
 - **Schedules** — a text editor per device. Errors are reported with line
   numbers, and the next five firings are previewed before you save.
 - **Devices** — broadcast scan for devices on the LAN, or add one by IP or
@@ -30,6 +31,10 @@ Built on [python-kasa](https://python-kasa.readthedocs.io/).
 
 Multiple people can be signed in at once; the server is threaded and the
 device layer is shared and lock-guarded.
+
+The foot of the side rail shows the Kasa Panel and python-kasa versions
+beside the sign-out button, which is the first thing to quote in a bug
+report.
 
 ## Requirements
 
@@ -364,6 +369,42 @@ A rule that fails — device unplugged, timeout — is logged as an error and
 does not stop the other rules. Missing a minute (the host was asleep, the
 process was stopped) skips that firing rather than replaying it, which is
 how cron behaves; the daemon logs a warning when it notices a gap.
+
+### Snoozing a schedule
+
+The **Snooze** menu on each device card holds that device's schedule for
+5, 15 or 30 minutes, 1, 3, 6 or 12 hours, a day or a week, or until a
+time you type under **Custom…**. Rules that fall due during a snooze are
+skipped, not caught up afterwards, the same as a missed minute. The card
+says when the schedule resumes, and the menu offers **Resume schedule
+now** while a snooze is in force. The device itself is untouched: snoozing
+at 21:55 does not switch anything off, it only stops the 22:00 rule.
+
+The custom time is written in `systemd.time` syntax (`man systemd.time`),
+which is checked as you type:
+
+```
+45min                 a span, counted from now
+2h 30min              components add up; 2h30m works too
+3d   2w   1.5h        days, weeks, fractions
+tomorrow 07:00        a timestamp
+23:30                 today at 23:30 -- refused once it has passed
+2026-12-26 09:00      a date and time
+Sat 2026-12-26 09:00  a weekday, which must match the date
+2026-12-26 09:00 UTC  in UTC rather than local time
+@1798293600           seconds since the epoch
+```
+
+Two departures from systemd, both deliberate. A bare span such as `2h` is
+accepted, where systemd wants `+2h` for a timestamp, because "snooze for
+two hours" is what anybody means. And a snooze longer than 366 days is
+refused: disable the schedule instead. A bare time keeps systemd's
+meaning, today, so `07:00` typed in the evening is an error with a hint to
+write `tomorrow 07:00` rather than quietly becoming tomorrow.
+
+The snooze is stored as `snoozed_until` in the device's own file, so it
+survives a restart. Once it has passed, the scheduler removes it and notes
+in the activity log that the rules are running again.
 
 ## Files
 
@@ -777,9 +818,12 @@ PATCH  /api/devices/<id>             rename, enable, annotate
 DELETE /api/devices/<id>             remove
 POST   /api/devices/<id>/action      {action, arguments}
 POST   /api/devices/<id>/refresh     poll now
+POST   /api/devices/<id>/snooze      hold the schedule {for: "2h"}
+DELETE /api/devices/<id>/snooze      resume the schedule now
 GET    /api/devices/<id>/schedule    the script and its summary
 PUT    /api/devices/<id>/schedule    save a script (400 if invalid)
 POST   /api/schedule/check           validate without saving
+POST   /api/snooze/check             resolve a snooze time without setting it
 POST   /api/scan                     broadcast discovery
 GET    /api/settings                 redacted settings
 PUT    /api/settings                 change settings
@@ -806,6 +850,7 @@ app                       the one object that owns everything
 auth  activity  scheduler  sessions, PAM, log, minute ticks
 kasabridge                the async boundary
 schedule  cron  actions   the schedule language
+snooze                    holding a schedule; systemd.time parsing
 devicestore  config       JSON persistence
 jsonstore                 atomic writes
 ```

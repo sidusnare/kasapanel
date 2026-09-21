@@ -25,6 +25,7 @@ import sys
 import threading
 from typing import Any, Dict, List, Optional
 
+from kasapanel import __version__
 from kasapanel import actions
 from kasapanel import activity as activity_lib
 from kasapanel import auth
@@ -34,6 +35,7 @@ from kasapanel import filecheck
 from kasapanel import kasabridge
 from kasapanel import logsink
 from kasapanel import schedule as schedule_lib
+from kasapanel import snooze as snooze_lib
 
 _LOG = logging.getLogger(__name__)
 
@@ -68,6 +70,16 @@ def configure_logging(settings: config_lib.PanelConfig) -> None:
     handler.setFormatter(logging.Formatter(LOG_FORMAT))
     root.addHandler(handler)
     root.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
+
+
+def versions() -> Dict[str, str]:
+    """Reports the versions of Kasa Panel and python-kasa in use.
+
+    Returns:
+        Package names mapped to version strings; python-kasa is empty
+        when it is not installed.
+    """
+    return {'kasapanel': __version__, 'python_kasa': kasabridge.KASA_VERSION}
 
 
 class Application:
@@ -340,6 +352,52 @@ class Application:
         self._poll_one(record)
         return result
 
+    def snooze(self, device_id: str, text: str,
+               actor: str = 'dashboard') -> datetime.datetime:
+        """Snoozes a device's schedule.
+
+        Args:
+            device_id: Identifier of the device.
+            text: How long, in systemd.time syntax.
+            actor: Who asked for it, used in the activity log.
+
+        Returns:
+            When the schedule resumes.
+
+        Raises:
+            snooze_lib.SnoozeError: If the time cannot be used.
+            devicestore.DeviceError: If the device is unknown.
+        """
+        record = self.devices.get(device_id)
+        until = snooze_lib.resolve(text)
+        self.devices.snooze(device_id, until)
+        self.activity.add(
+            f'Schedule snoozed until {until:%Y-%m-%d %H:%M} ({text.strip()})',
+            source=actor, device_id=device_id,
+            device_name=record.display_name)
+        return until
+
+    def unsnooze(self, device_id: str, actor: str = 'dashboard') -> bool:
+        """Lifts a snooze so the schedule runs again at once.
+
+        Args:
+            device_id: Identifier of the device.
+            actor: Who asked for it, used in the activity log.
+
+        Returns:
+            Whether there was a snooze to lift.
+
+        Raises:
+            devicestore.DeviceError: If the device is unknown.
+        """
+        record = self.devices.get(device_id)
+        lifted = self.devices.unsnooze(device_id)
+        if lifted:
+            self.activity.add(
+                'Schedule snooze cancelled', source=actor,
+                device_id=device_id, device_name=record.display_name)
+        return lifted
+
     def device_view(self, record: devicestore.DeviceRecord) -> Dict[str, Any]:
         """Builds the dashboard view of one device.
 
@@ -353,13 +411,20 @@ class Application:
         document = self.devices.device_document(record.device_id)
         entries, problems = schedule_lib.parse_script(
             document.get('schedule', ''))
+        snoozed = snooze_lib.active_until(document.get('snoozed_until'))
         view = record.to_dict()
         view['display_name'] = record.display_name
         view['state'] = self.state_of(record.device_id)
         view['schedule_enabled'] = bool(document.get('schedule_enabled', True))
+        view['snoozed_until'] = (snoozed.isoformat(timespec='seconds')
+                                 if snoozed else '')
         view['rule_count'] = len(entries)
         view['schedule_problems'] = len(problems)
-        view['next_runs'] = (schedule_lib.next_runs(entries, count=2)
+        # While snoozed, the next rule is the first one after it ends.
+        start = (snooze_lib.first_minute(snoozed)
+                 - datetime.timedelta(minutes=1)) if snoozed else None
+        view['next_runs'] = (schedule_lib.next_runs(entries, count=2,
+                                                    now=start)
                              if document.get('schedule_enabled', True)
                              else [])
         view['last_seen'] = document.get('last_seen', '')
@@ -399,4 +464,5 @@ class Application:
             'pam_available': auth.PAM_AVAILABLE,
             'pam_error': auth.pam_reason(),
             'daemon_user': dict(self.daemon_user),
+            'versions': versions(),
         }

@@ -80,5 +80,42 @@
       "expands_to": "0 0 1 1 *"
     }
   ],
-  "example": "# One rule per line: <schedule> <action> [arguments]\n# Times use the daemon host clock, to the minute.\n\n# 0 6 * * mon-fri   on\n# 30 22 * * *       off\n# */30 * * * *      refresh\n"
+  "example": "# One rule per line: <schedule> <action> [arguments]\n# Times use the daemon host clock, to the minute.\n\n# 0 6 * * mon-fri   on\n# 30 22 * * *       off\n# */30 * * * *      refresh\n",
+  "snooze": {
+    "examples": [
+      {
+        "text": "45min",
+        "means": "forty-five minutes from now"
+      },
+      {
+        "text": "2h 30min",
+        "means": "two and a half hours from now"
+      },
+      {
+        "text": "3d",
+        "means": "three days from now"
+      },
+      {
+        "text": "2w",
+        "means": "two weeks from now"
+      },
+      {
+        "text": "tomorrow 07:00",
+        "means": "seven tomorrow morning"
+      },
+      {
+        "text": "23:30",
+        "means": "half past eleven tonight"
+      },
+      {
+        "text": "2026-08-05 09:00",
+        "means": "a date and time"
+      },
+      {
+        "text": "Wed 2026-08-05 09:00",
+        "means": "with a weekday, which must match the date"
+      }
+    ],
+    "max_days": 366
+  }
 }

@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 
 from kasapanel import jsonstore
 from kasapanel import schedule as schedule_lib
+from kasapanel import snooze as snooze_lib
 
 _LOG = logging.getLogger(__name__)
 
@@ -531,6 +532,48 @@ class DeviceStore:
         document = self.device_document(device_id)
         document['schedule_enabled'] = bool(enabled)
         return self.save_device_document(device_id, document)
+
+    def snooze(self, device_id: str,
+               until: datetime.datetime) -> Dict[str, Any]:
+        """Holds a device's schedule until a given moment.
+
+        Args:
+            device_id: Identifier of the device.
+            until: Local time at which the schedule resumes.
+
+        Returns:
+            The stored per-device document.
+        """
+        with self._lock:
+            document = self.device_document(device_id)
+            document['snoozed_until'] = until.isoformat(timespec='seconds')
+            return self.save_device_document(device_id, document)
+
+    def unsnooze(self, device_id: str,
+                 ended_by: Optional[datetime.datetime] = None) -> bool:
+        """Lifts a snooze.
+
+        Args:
+            device_id: Identifier of the device.
+            ended_by: Only lift a snooze that had run out by this
+                moment.  The scheduler passes this when it tidies up,
+                so a snooze somebody set a moment ago is not cleared
+                by a thread that read the old one.
+
+        Returns:
+            Whether a snooze was stored and has been removed.
+        """
+        with self._lock:
+            document = self.device_document(device_id)
+            if not document.get('snoozed_until'):
+                return False
+            stored = snooze_lib.stored_until(document.get('snoozed_until'))
+            if (ended_by is not None and stored is not None
+                    and stored > ended_by):
+                return False
+            document.pop('snoozed_until', None)
+            self.save_device_document(device_id, document)
+            return True
 
     def record_state(self, device_id: str, state: Dict[str, Any]) -> None:
         """Stores the last known state of a device.

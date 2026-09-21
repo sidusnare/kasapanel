@@ -33,7 +33,7 @@ export function createServer({acceptCookie = true, lastResort = false} = {}) {
     const pathname = String(url).split('?')[0];
     const headers = options.headers || {};
     const body = options.body ? JSON.parse(options.body) : {};
-    calls.push({method, pathname, headers});
+    calls.push({method, pathname, headers, body});
 
     const carriesSession = headers['X-Kasa-Session'] === token
       || (acceptCookie && signedIn && options.credentials === 'same-origin'
@@ -129,6 +129,30 @@ export function createServer({acceptCookie = true, lastResort = false} = {}) {
           ? true : body.action === 'off' ? false : !device.state.is_on}};
       devices[devices.indexOf(device)] = next;
       return reply(200, {device: next, result: 'ok'});
+    }
+    const snooze = pathname.match(/^\/api\/devices\/([^/]+)\/snooze$/);
+    if (snooze) {
+      const device = devices.find((d) => d.device_id === snooze[1]);
+      if (method === 'DELETE') {
+        const next = {...device, snoozed_until: ''};
+        devices[devices.indexOf(device)] = next;
+        return reply(200, {device: next, lifted: Boolean(device.snoozed_until)});
+      }
+      if (!/^\d/.test(body.for) && !body.for.startsWith('tomorrow')) {
+        return reply(400, {error: `"${body.for}" is not a time span or a `
+          + 'timestamp'});
+      }
+      const until = '2026-07-29T16:55:00';
+      const next = {...device, snoozed_until: until};
+      devices[devices.indexOf(device)] = next;
+      return reply(200, {device: next, snoozed_until: until});
+    }
+    if (pathname === '/api/snooze/check') {
+      return /^\d/.test(body.for) || body.for.startsWith('tomorrow')
+        ? reply(200, {valid: true, error: '',
+          snoozed_until: '2026-07-30T07:00:00'})
+        : reply(200, {valid: false, snoozed_until: '',
+          error: `"${body.for}" is not a time span or a timestamp`});
     }
     const schedule = pathname.match(/^\/api\/devices\/([^/]+)\/schedule$/);
     if (schedule && method === 'GET') {

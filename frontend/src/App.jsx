@@ -59,6 +59,19 @@ function Readouts({dashboard}) {
   );
 }
 
+function Versions({dashboard}) {
+  const versions = (dashboard && dashboard.versions) || {};
+  if (!versions.kasapanel) {
+    return null;
+  }
+  return (
+    <p className="versions mono">
+      <span>kasapanel {versions.kasapanel}</span>
+      <span>python-kasa {versions.python_kasa || 'missing'}</span>
+    </p>
+  );
+}
+
 export default function App() {
   const notify = useToast();
   const [ready, setReady] = useState(false);
@@ -214,9 +227,12 @@ export default function App() {
         <div className="rail-foot">
           <p className="engraved">Signed in</p>
           <p className="mono">{username}</p>
-          <button type="button" className="quiet" onClick={signOut}>
-            Sign out
-          </button>
+          <div className="rail-foot-row">
+            <button type="button" className="quiet" onClick={signOut}>
+              Sign out
+            </button>
+            <Versions dashboard={dashboard} />
+          </div>
         </div>
       </aside>
 
@@ -224,7 +240,10 @@ export default function App() {
         <Readouts dashboard={dashboard} />
         <section className="view is-current">
           {view === 'panel'
-            ? <Panel dashboard={dashboard} onChanged={replaceDevice} />
+            ? (
+              <Panel dashboard={dashboard} reference={reference}
+                onChanged={replaceDevice} />
+            )
             : null}
           {view === 'schedules'
             ? (

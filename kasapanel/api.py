@@ -28,6 +28,7 @@ from kasapanel import devicestore
 from kasapanel import jsonstore
 from kasapanel import kasabridge
 from kasapanel import schedule as schedule_lib
+from kasapanel import snooze as snooze_lib
 
 _LOG = logging.getLogger(__name__)
 
@@ -652,6 +653,80 @@ def check_schedule(app: Any, request: Request, params: Tuple[str, ...],
     })
 
 
+def snooze_device(app: Any, request: Request, params: Tuple[str, ...],
+                  session: Optional[auth.Session]) -> Response:
+    """Snoozes a device's schedule.
+
+    The body carries ``for``: a time span or timestamp in systemd.time
+    syntax, such as ``2h`` or ``tomorrow 07:00``.
+
+    Args:
+        app: The application.
+        request: The decoded request.
+        params: Path parameters holding the device identifier.
+        session: The current session.
+
+    Returns:
+        When the snooze ends, and the fresh device view.
+    """
+    actor = session.username if session else 'dashboard'
+    until = app.snooze(params[0], request.text('for'), actor=actor)
+    return Response(payload={
+        'snoozed_until': until.isoformat(timespec='seconds'),
+        'device': app.device_view(app.devices.get(params[0])),
+    })
+
+
+def unsnooze_device(app: Any, request: Request, params: Tuple[str, ...],
+                    session: Optional[auth.Session]) -> Response:
+    """Lifts a snooze so the device's schedule runs again.
+
+    Args:
+        app: The application.
+        request: Unused.
+        params: Path parameters holding the device identifier.
+        session: The current session.
+
+    Returns:
+        Whether a snooze was lifted, and the fresh device view.
+    """
+    del request
+    actor = session.username if session else 'dashboard'
+    lifted = app.unsnooze(params[0], actor=actor)
+    return Response(payload={
+        'lifted': lifted,
+        'device': app.device_view(app.devices.get(params[0])),
+    })
+
+
+def check_snooze(app: Any, request: Request, params: Tuple[str, ...],
+                 session: Optional[auth.Session]) -> Response:
+    """Works out when a snooze would end, without setting one.
+
+    The custom snooze dialog calls this as the operator types, so a
+    mistake is explained before anything is saved.
+
+    Args:
+        app: Unused.
+        request: The decoded request.
+        params: Unused.
+        session: Unused.
+
+    Returns:
+        Whether the text is usable, when it ends, or what is wrong.
+    """
+    del app, params, session
+    try:
+        until = snooze_lib.resolve(request.text('for'))
+    except snooze_lib.SnoozeError as err:
+        return Response(payload={'valid': False, 'error': str(err),
+                                 'snoozed_until': ''})
+    return Response(payload={
+        'valid': True, 'error': '',
+        'snoozed_until': until.isoformat(timespec='seconds'),
+    })
+
+
 def scan(app: Any, request: Request, params: Tuple[str, ...],
          session: Optional[auth.Session]) -> Response:
     """Scans the local network for devices.
@@ -813,6 +888,7 @@ def reference(app: Any, request: Request, params: Tuple[str, ...],
             for name, value in sorted(cron.MACROS.items())
         ],
         'example': schedule_lib.EXAMPLE_SCRIPT,
+        'snooze': snooze_lib.reference(),
     })
 
 
@@ -837,7 +913,12 @@ ROUTES: List[Tuple[str, Pattern[str], Handler, bool]] = [
      get_schedule, True),
     ('PUT', re.compile(r'^/api/devices/([\w.-]+)/schedule$'),
      put_schedule, True),
+    ('POST', re.compile(r'^/api/devices/([\w.-]+)/snooze$'),
+     snooze_device, True),
+    ('DELETE', re.compile(r'^/api/devices/([\w.-]+)/snooze$'),
+     unsnooze_device, True),
     ('POST', re.compile(r'^/api/schedule/check$'), check_schedule, True),
+    ('POST', re.compile(r'^/api/snooze/check$'), check_snooze, True),
     ('POST', re.compile(r'^/api/scan$'), scan, True),
     ('GET', re.compile(r'^/api/settings$'), get_settings, True),
     ('PUT', re.compile(r'^/api/settings$'), put_settings, True),
@@ -901,6 +982,8 @@ def dispatch(app: Any, request: Request) -> Response:
     except devicestore.DeviceError as err:
         return error(404, str(err))
     except schedule_lib.ScheduleError as err:
+        return error(400, str(err))
+    except snooze_lib.SnoozeError as err:
         return error(400, str(err))
     except actions.ActionError as err:
         return error(400, str(err))

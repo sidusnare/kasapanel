@@ -56,6 +56,7 @@ kasapanel/            the Python package
   schedule.py         the per-device schedule language
   kasabridge.py       the boundary between threads and python-kasa's asyncio
   scheduler.py        the minute tick
+  snooze.py           holding a schedule, and systemd.time parsing
   auth.py             PAM, sign-in policy, sessions
   activity.py         the in-memory activity ring buffer
   privsep.py          the privileged PAM helper and privilege dropping
@@ -133,6 +134,36 @@ rules through a small thread pool, and deduplicates on
 `(device_id, line_number, minute)`. A missed minute is skipped rather than
 replayed, as cron does, with a warning when the gap is noticed. A rule that
 fails is logged and does not stop the others.
+
+### Snoozing
+
+Any device's schedule can be **snoozed**: held until a moment, then left
+to carry on. Store it as one `snoozed_until` timestamp in the per-device
+document, so it survives a restart. The scheduler runs none of that
+device's rules for a minute earlier than it; rules due in the meantime
+are **skipped, not replayed**, for the same reason a missed minute is. When
+the scheduler finds a snooze that has run out it removes it and says so
+in the activity log, once — but only if the stored value is still the one
+that ran out, so a snooze somebody set a moment ago is not cleared by a
+thread that read the old one. A stored value that cannot be read counts
+as no snooze: a hand edit must not be able to stop a schedule for good.
+Snoozing never touches the device itself. While snoozed, the next rule
+the dashboard shows is the first one after the snooze ends.
+
+How long is written in **`systemd.time` syntax**, because anyone running
+this daemon already reads it in unit files. Accept time spans (`45min`,
+`2h 30min`, `1.5d`, `1w`, `+3h`, `3h left`; units case-sensitive, so `m`
+is minutes and `M` months; a number with no unit is seconds) and
+timestamps (`tomorrow 07:00`, `23:30`, `2026-12-26 09:00`, the `T` form,
+a weekday that must match the date, a trailing `UTC`, `@epoch`). Two
+deliberate departures: a **bare span is accepted** where systemd wants a
+leading `+`, since "snooze for 2h" is what anybody means; and anything
+**over 366 days is refused**, since that is a typo or a schedule that
+should be disabled. Otherwise keep systemd's meaning — a bare `07:00` is
+today, so once it has passed refuse it with a hint to write
+`tomorrow 07:00` rather than quietly making it tomorrow. Anything in the
+past is refused. Every failure is one exception type with a message fit
+to show the operator.
 
 ## 5. Authentication
 
@@ -312,8 +343,10 @@ return a response object, and let the HTTP layer do sockets. This is what
 makes the API testable without a network.
 
 Endpoints for session, dashboard, devices (list, add, patch, delete),
-per-device action and refresh, per-device schedule (get, put), a schedule
-check that validates without saving, scan, settings, activity, sessions, a
+per-device action and refresh, per-device schedule (get, put), per-device
+snooze (`POST` with `{for}` in systemd.time syntax, `DELETE` to resume), a
+schedule check that validates without saving, a snooze check that resolves
+a time without setting it, scan, settings, activity, sessions, a
 reference describing the language, and an unauthenticated `/healthz`.
 
 Map domain exceptions to status codes: unknown device 404, bad schedule or
@@ -358,6 +391,25 @@ visible state cannot drift apart. Everything else stays quiet. Where a row
 shows several fields — the next-firings list, for instance — give them real
 columns with spacing, not adjacent spans that run together.
 
+Each card's actions row ends, next to **LED off**, with a **Snooze**
+menu: 5, 15 and 30 minutes, 1, 3, 6 and 12 hours, 1 day, 1 week, and
+**Custom…**. The presets are sent as systemd.time spans (`5min`, `1w`), so
+there is one parser and it is on the server. While a snooze is in force
+the button reads **Snoozed**, the card says until when in the attention
+colour (a held schedule is not a fault, so not red), and the menu leads
+with **Resume schedule now**. **Custom…** opens a modal dialog that takes a
+systemd.time value, asks the snooze check what it means as the operator
+types and shows either when the schedule resumes or what is wrong,
+refuses to submit a bad value, and lists worked examples — dated ones
+made fresh by the server so they never go stale — that fill the field
+when clicked. Render the dialog into the body through a portal, so a
+dimmed disabled card does not dim it, and keep its focus handling out of
+the re-render every poll causes, or the field loses focus mid-word.
+
+The foot of the side rail shows the **Kasa Panel and python-kasa
+versions** beside the **Sign out** button, taken from the dashboard
+payload; python-kasa's comes from its distribution metadata.
+
 Poll the dashboard every five seconds, and not at all while the tab is
 hidden.
 
@@ -371,8 +423,11 @@ days and by the minute otherwise, and turns red once inside 48 hours.
 ## 11. Testing
 
 Python: unit tests for the cron parser and its edge cases, the schedule
-language, atomic storage, config coercion, the device store, the API
-(routing, both session carriers, CSRF, error mapping), PAM diagnosis and
+language, the snooze syntax (every menu preset, spans, timestamps, the
+past, nonsense, the ceiling) and the scheduler skipping a snoozed device
+and tidying up after it, atomic storage, config coercion, the device
+store, the API (routing, both session carriers, CSRF, error mapping,
+snoozing), PAM diagnosis and
 sign-in policy, the log handler under rotation and deletion, and the
 certificate watcher — including a **live HTTPS server whose certificate is
 swapped underneath it while a connection is open**.
@@ -388,7 +443,10 @@ the daemon does. One test must mount the app with cookie storage disabled
 and assert the panel still works, because that is the failure the header
 carrier exists for. Another must assert that a daemon running as
 `nobody` lands on the settings page with the banner showing, and that
-the operator can still navigate away from it.
+the operator can still navigate away from it. Others must open the
+snooze menu and find every length, set and lift a snooze, drive the
+custom dialog through a refused value and an example to a set snooze,
+and find both versions beside the sign-out button.
 
 Everything must pass, and pylint must stay above 9.5 across the package, the
 tests and the tools.

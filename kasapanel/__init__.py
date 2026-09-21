@@ -24,7 +24,7 @@ its own:
 * :mod:`kasapanel.cli` -- the command line entry point.
 """
 
-__version__ = '1.6.2'
+__version__ = '1.7.0'
 __license__ = 'GPL-3.0-or-later'
 
 APP_NAME = 'kasapanel'

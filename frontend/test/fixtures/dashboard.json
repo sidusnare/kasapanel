@@ -28,7 +28,8 @@
                     "command": "refresh"
                 }
             ],
-            "last_seen": "2026-07-29T14:54:54"
+            "last_seen": "2026-07-29T14:54:54",
+            "snoozed_until": ""
         }
     ],
     "summary": {
@@ -47,5 +48,9 @@
     },
     "kasa_available": true,
     "pam_available": true,
-    "pam_error": ""
+    "pam_error": "",
+    "versions": {
+        "kasapanel": "1.7.0",
+        "python_kasa": "0.10.2"
+    }
 }

@@ -9,13 +9,15 @@ import React, {useState} from 'react';
 import {api} from '../api.js';
 import Rocker from '../components/Rocker.jsx';
 import Slider from '../components/Slider.jsx';
+import {CustomSnooze, SnoozeMenu} from '../components/SnoozeMenu.jsx';
 import {useToast} from '../components/Toasts.jsx';
 import {DASH, clockTime, deviceSubtitle, shortTime, stateWord, watts}
   from '../format.js';
 
-function Card({device, onChanged}) {
+function Card({device, reference, onChanged}) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
+  const [custom, setCustom] = useState(false);
   const state = device.state || {};
   const mark = stateWord(device);
   const nextRun = (device.next_runs || [])[0];
@@ -27,6 +29,38 @@ function Card({device, onChanged}) {
         `/api/devices/${device.device_id}/action`,
         {action, arguments: args || []});
       onChanged(answer.device);
+    } catch (err) {
+      notify(`${device.display_name}: ${err.message}`, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Resolves true when the snooze was set, so the dialog knows to close.
+  async function snooze(span) {
+    setBusy(true);
+    try {
+      const answer = await api.post(
+        `/api/devices/${device.device_id}/snooze`, {for: span});
+      onChanged(answer.device);
+      notify(`${device.display_name}: schedule snoozed until `
+        + `${shortTime(answer.snoozed_until)}`);
+      return true;
+    } catch (err) {
+      notify(`${device.display_name}: ${err.message}`, true);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resume() {
+    setBusy(true);
+    try {
+      const answer = await api.remove(
+        `/api/devices/${device.device_id}/snooze`);
+      onChanged(answer.device);
+      notify(`${device.display_name}: schedule resumed`);
     } catch (err) {
       notify(`${device.display_name}: ${err.message}`, true);
     } finally {
@@ -97,6 +131,13 @@ function Card({device, onChanged}) {
         </div>
       </dl>
 
+      {device.snoozed_until
+        ? (
+          <p className="snoozed mono">
+            Schedule snoozed until {shortTime(device.snoozed_until)}
+          </p>
+        )
+        : null}
       {state.error ? <p className="alarm">{state.error}</p> : null}
       {device.schedule_problems
         ? (
@@ -136,12 +177,29 @@ function Card({device, onChanged}) {
               onClick={() => send('led', ['off'])}>LED off</button>
           )
           : null}
+        <SnoozeMenu
+          snoozedUntil={device.snoozed_until}
+          disabled={busy}
+          onSnooze={snooze}
+          onResume={resume}
+          onCustom={() => setCustom(true)}
+        />
       </footer>
+      {custom
+        ? (
+          <CustomSnooze
+            device={device}
+            reference={reference}
+            onSnooze={snooze}
+            onClose={() => setCustom(false)}
+          />
+        )
+        : null}
     </article>
   );
 }
 
-export default function Panel({dashboard, onChanged}) {
+export default function Panel({dashboard, reference, onChanged}) {
   const devices = (dashboard && dashboard.devices) || [];
   if (!devices.length) {
     return (
@@ -154,7 +212,8 @@ export default function Panel({dashboard, onChanged}) {
   return (
     <div className="grid">
       {devices.map((device) => (
-        <Card key={device.device_id} device={device} onChanged={onChanged} />
+        <Card key={device.device_id} device={device} reference={reference}
+          onChanged={onChanged} />
       ))}
     </div>
   );
