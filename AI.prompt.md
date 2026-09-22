@@ -377,9 +377,11 @@ into `kasapanel/static/bundle.js`. Commit the bundle so installing needs
 Python only. No inline script or style anywhere, because the CSP forbids it.
 
 Five tabs: **Panel** (a card per device with a two-position rocker switch,
-sliders where the device supports them, live readings), **Schedules** (a
-text editor per device, problems listed with line numbers, the next five
-firings previewed), **Devices** (scan, add by address, rename, disable,
+sliders where the device supports them, live readings), **Schedules** (three
+columns: the device list; a text editor per device with its save controls
+and problems listed by line number, and the language reference beneath it
+so it can be read while typing; and the next five firings previewed in a
+narrow right-hand column, where a long command wraps under its time), **Devices** (scan, add by address, rename, disable,
 remove), **Activity**, and **Settings**.
 
 Give it a considered visual identity rather than a default one. The

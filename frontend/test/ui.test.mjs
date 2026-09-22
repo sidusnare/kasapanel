@@ -239,6 +239,32 @@ describe('the tabs', () => {
     assert.ok(saved, 'saving should reach the daemon');
   });
 
+  it('lays the schedules page out in three columns', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    findByText(app.document, '.tab', 'Schedules').click();
+    await app.settle();
+    const columns = [...app.document.querySelectorAll(
+      '.split.schedules > .column')];
+    assert.equal(columns.length, 3, 'there should be three columns');
+    const [devices, editor, firings] = columns;
+    assert.ok(devices.querySelector('.picker'),
+      'the device list should stay in the first column');
+    assert.equal(devices.querySelector('textarea'), null,
+      'the editor should have left the device column');
+    assert.ok(editor.querySelector('textarea'),
+      'the editor should be in the middle column');
+    assert.match(text(editor), /The language/,
+      'the language reference should stay in the middle column');
+    assert.ok(editor.querySelector('textarea').compareDocumentPosition(
+      findByText(editor, '.block', 'The language'))
+      & app.window.Node.DOCUMENT_POSITION_FOLLOWING,
+    'the editor should sit above the language reference');
+    assert.match(text(firings), /Next five firings/,
+      'the firings should be in the right-hand column');
+  });
+
   it('shows the inventory and can add a device', async () => {
     const app = await mount();
     after(() => app.close());

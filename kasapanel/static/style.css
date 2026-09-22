@@ -601,6 +601,13 @@ textarea {
   white-space: nowrap;
 }
 
+/* The firings column on the schedules page is narrow, so a long
+   command drops under its time rather than squeezing it. */
+.firings .ticks li { flex-wrap: wrap; gap: 2px 10px; }
+.firings .ticks { margin: 0; }
+.firings h3 { margin-top: 0; }
+.editor .block { margin: 16px 0 0; }
+
 /* A narrow column cannot hold three across; stack them instead. */
 @media (max-width: 1100px) {
   .ticks li { flex-wrap: wrap; gap: 2px 10px; }

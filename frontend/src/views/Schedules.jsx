@@ -152,9 +152,12 @@ export default function Schedules({devices, reference, onSaved}) {
     return <p className="empty">Add a device before writing a schedule.</p>;
   }
 
+  // Three columns: the device picker, then the editor with the language
+  // beneath it where it can be read while typing, then the preview of
+  // what the script will do.
   return (
-    <div className="split">
-      <div className="column wide">
+    <div className="split schedules">
+      <div className="column">
         <div className="picker">
           {devices.map((device) => (
             <button
@@ -168,7 +171,9 @@ export default function Schedules({devices, reference, onSaved}) {
             </button>
           ))}
         </div>
+      </div>
 
+      <div className="column editor">
         <label className="field">
           <span className="engraved">schedule</span>
           <textarea
@@ -197,14 +202,12 @@ export default function Schedules({devices, reference, onSaved}) {
         </div>
 
         <Findings summary={summary} />
+        <Reference reference={reference} />
       </div>
 
-      <div className="column">
-        <div className="block">
-          <h3 className="engraved">Next five firings</h3>
-          <NextRuns summary={summary} />
-        </div>
-        <Reference reference={reference} />
+      <div className="column firings">
+        <h3 className="engraved">Next five firings</h3>
+        <NextRuns summary={summary} />
       </div>
     </div>
   );
