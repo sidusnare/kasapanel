@@ -251,6 +251,11 @@ main { min-width: 0; padding: 0 0 40px; }
   overflow-wrap: anywhere;
 }
 
+/* The lock on a card title and in the schedule picker: a statement of
+   fact beside the name, not a control. */
+
+.card-lock, .pick-lock { font-size: 14px; margin-left: 6px; }
+
 .card-sub {
   font-family: var(--utility);
   font-size: 11px;
@@ -414,6 +419,19 @@ button.is-snoozed { color: var(--attention); border-color: var(--attention); }
 }
 
 .snooze-check.bad { color: var(--fault); }
+
+/* The yes/no plate a locked device puts up.  The question reads as
+   prose, since it is the one thing on the plate worth reading. */
+
+.confirm-question { margin: 0 0 16px; }
+
+.confirm-problem {
+  font-family: var(--utility);
+  font-size: 12px;
+  color: var(--fault);
+  margin: -4px 0 0;
+  min-height: 1.45em;
+}
 
 .examples ul {
   list-style: none;
@@ -661,6 +679,14 @@ textarea {
   font-size: 11px;
   color: var(--ink-soft);
   font-family: var(--utility);
+}
+
+.lock-box {
+  accent-color: var(--fault);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  vertical-align: middle;
 }
 
 .badge {

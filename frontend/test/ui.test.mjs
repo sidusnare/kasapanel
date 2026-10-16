@@ -438,6 +438,233 @@ describe('the daemon account', () => {
   });
 });
 
+// The lock, from the browser's side.  The daemon is the thing that
+// enforces it; what these cases check is that the panel asks before it
+// sends, and that it does not send when the answer is no.
+describe('a locked device', () => {
+  function plate(app) {
+    return app.document.querySelector('.modal.plate');
+  }
+
+  function answer(app, word) {
+    findByText(plate(app), 'button', word).click();
+    return app.settle();
+  }
+
+  it('wears a lock on its card and in the picker', async () => {
+    const app = await mount({locked: true});
+    after(() => app.close());
+    await signIn(app);
+    const name = app.document.querySelector('.card-name');
+    assert.match(text(name), /\u{1F512}/u,
+      'the card title should carry a lock beside the name');
+    assert.ok(name.querySelector('[aria-label="locked"]'),
+      'the lock should be labelled for a screen reader');
+  });
+
+  it('asks before switching, and sends nothing on no', async () => {
+    const app = await mount({locked: true});
+    after(() => app.close());
+    await signIn(app);
+    app.document.querySelector('.rocker').click();
+    await app.settle();
+
+    assert.ok(plate(app), 'the rocker should raise a confirmation');
+    assert.match(text(plate(app)), /Switch on Bench plug\?/);
+    assert.equal(
+      app.server.calls.filter((c) => c.pathname.endsWith('/action')).length,
+      0, 'nothing should have been sent yet');
+
+    await answer(app, 'No');
+    assert.equal(plate(app), null, 'no should close the plate');
+    assert.equal(
+      app.server.calls.filter((c) => c.pathname.endsWith('/action')).length,
+      0, 'no should mean no');
+  });
+
+  it('switches once the answer is yes', async () => {
+    const app = await mount({locked: true});
+    after(() => app.close());
+    await signIn(app);
+    findByText(app.document, '.card-actions button', 'Toggle').click();
+    await app.settle();
+    assert.match(text(plate(app)), /Toggle Bench plug\?/);
+
+    await answer(app, 'Yes');
+    assert.equal(plate(app), null, 'the plate should close on success');
+    const sent = app.server.calls.find(
+      (c) => c.pathname.endsWith('/action'));
+    assert.ok(sent, 'the action should have been sent');
+    assert.equal(sent.body.action, 'toggle');
+    assert.equal(sent.body.confirm, true,
+      'the request should say it was confirmed');
+  });
+
+  it('asks before snoozing', async () => {
+    const app = await mount({locked: true});
+    after(() => app.close());
+    await signIn(app);
+    findByText(app.document, '.card-actions button', 'Snooze').click();
+    await app.settle();
+    findByText(app.document, '.menu button', '15 minutes').click();
+    await app.settle();
+    assert.match(text(plate(app)), /Snooze Bench plug for 15min\?/);
+    await answer(app, 'Yes');
+    const sent = app.server.calls.find(
+      (c) => c.pathname.endsWith('/snooze'));
+    assert.equal(sent.body.for, '15min');
+    assert.equal(sent.body.confirm, true);
+  });
+
+  it('asks before saving a schedule', async () => {
+    const app = await mount({locked: true});
+    after(() => app.close());
+    await signIn(app);
+    findByText(app.document, '.tab', 'Schedules').click();
+    await app.settle();
+    findByText(app.document, 'button', 'Save').click();
+    await app.settle();
+
+    assert.match(text(plate(app)), /Save the schedule for Bench plug\?/);
+    const before = app.server.calls.filter(
+      (c) => c.method === 'PUT' && c.pathname.endsWith('/schedule'));
+    assert.equal(before.length, 0, 'nothing should be saved unasked');
+    await answer(app, 'Yes');
+    const after_ = app.server.calls.filter(
+      (c) => c.method === 'PUT' && c.pathname.endsWith('/schedule'));
+    assert.equal(after_.length, 1);
+    assert.equal(after_[0].body.confirm, true);
+  });
+
+  it('names disabling a schedule as what it is', async () => {
+    const app = await mount({locked: true});
+    after(() => app.close());
+    await signIn(app);
+    findByText(app.document, '.tab', 'Schedules').click();
+    await app.settle();
+    app.document.querySelector('.toggle-line input').click();
+    await app.settle();
+    findByText(app.document, 'button', 'Save').click();
+    await app.settle();
+    assert.match(text(plate(app)),
+      /Disable the schedule for Bench plug\?/);
+  });
+
+  it('asks before the checkbox on the devices page lets go', async () => {
+    const app = await mount({locked: true});
+    after(() => app.close());
+    await signIn(app);
+    findByText(app.document, '.tab', 'Devices').click();
+    await app.settle();
+
+    const box = app.document.querySelector('.lock-box');
+    assert.ok(box, 'each device should have a lock checkbox');
+    assert.equal(box.checked, true, 'a locked device shows as locked');
+    // It sits to the left of the buttons for that device.
+    const cells = [...box.closest('tr').querySelectorAll('td')];
+    const mine = cells.indexOf(box.closest('td'));
+    const buttons = cells.findIndex((cell) => cell.querySelector('button'));
+    assert.ok(mine < buttons,
+      'the checkbox should come before the buttons');
+
+    box.click();
+    await app.settle();
+    assert.match(text(plate(app)), /Unlock Bench plug\?/);
+    const before = app.server.calls.filter((c) => c.method === 'PATCH');
+    assert.equal(before.length, 0, 'nothing should be sent unasked');
+    await answer(app, 'Yes');
+    const sent = app.server.calls.find((c) => c.method === 'PATCH');
+    assert.equal(sent.body.locked, false);
+    assert.equal(sent.body.confirm, true);
+    assert.equal(app.document.querySelector('.lock-box').checked, false);
+  });
+
+  it('locks a device without asking anything', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    findByText(app.document, '.tab', 'Devices').click();
+    await app.settle();
+    app.document.querySelector('.lock-box').click();
+    await app.settle();
+    assert.equal(plate(app), null, 'locking needs no ceremony');
+    const sent = app.server.calls.find((c) => c.method === 'PATCH');
+    assert.equal(sent.body.locked, true);
+  });
+});
+
+// secure_locked is not a setting the panel can read, so the dialog
+// learns about it the only way anything can: by being asked.
+describe('a device locked behind a password', () => {
+  function plate(app) {
+    return app.document.querySelector('.modal.plate');
+  }
+
+  it('asks for the password only once it has to', async () => {
+    const app = await mount({locked: true, securePassword: 'secret'});
+    after(() => app.close());
+    await signIn(app);
+    app.document.querySelector('.rocker').click();
+    await app.settle();
+
+    assert.equal(plate(app).querySelector('input[type="password"]'), null,
+      'the password should not be asked for before it is needed');
+    findByText(plate(app), 'button', 'Yes').click();
+    await app.settle();
+
+    const field = plate(app).querySelector('input[type="password"]');
+    assert.ok(field, 'the dialog should now ask for the password');
+    assert.equal(app.document.activeElement, field,
+      'the field should be ready to type into');
+    const actions = app.server.calls.filter(
+      (c) => c.pathname.endsWith('/action'));
+    assert.equal(actions.length, 1, 'the first yes was the one refused');
+  });
+
+  it('refuses a wrong password and keeps asking', async () => {
+    const app = await mount({locked: true, securePassword: 'secret'});
+    after(() => app.close());
+    await signIn(app);
+    app.document.querySelector('.rocker').click();
+    await app.settle();
+    findByText(plate(app), 'button', 'Yes').click();
+    await app.settle();
+
+    set(app.window, plate(app).querySelector('input[type="password"]'),
+      'wrong');
+    findByText(plate(app), 'button', 'Yes').click();
+    await app.settle();
+    assert.ok(plate(app), 'the dialog should still be open');
+    assert.match(text(plate(app).querySelector('.confirm-problem')),
+      /did not match/);
+    assert.equal(app.document.querySelector('.rocker')
+      .getAttribute('aria-pressed'), 'false',
+    'the device should not have been switched');
+  });
+
+  it('acts once the password is right', async () => {
+    const app = await mount({locked: true, securePassword: 'secret'});
+    after(() => app.close());
+    await signIn(app);
+    app.document.querySelector('.rocker').click();
+    await app.settle();
+    findByText(plate(app), 'button', 'Yes').click();
+    await app.settle();
+    set(app.window, plate(app).querySelector('input[type="password"]'),
+      'secret');
+    findByText(plate(app), 'button', 'Yes').click();
+    await app.settle();
+
+    assert.equal(plate(app), null, 'the dialog should close');
+    const sent = app.server.calls.filter(
+      (c) => c.pathname.endsWith('/action'));
+    assert.equal(sent.length, 2, 'asked once, then confirmed');
+    assert.equal(sent[1].body.password, 'secret');
+    assert.equal(app.document.querySelector('.rocker')
+      .getAttribute('aria-pressed'), 'true');
+  });
+});
+
 describe('signing out', () => {
   it('returns to the sign-in plate', async () => {
     const app = await mount();

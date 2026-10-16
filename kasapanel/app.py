@@ -421,6 +421,29 @@ class Application:
                 device_id=device_id, device_name=record.display_name)
         return lifted
 
+    def set_locked(self, device_id: str, locked: bool,
+                   actor: str = 'dashboard') -> bool:
+        """Locks or unlocks a device and says so in the activity log.
+
+        Args:
+            device_id: Identifier of the device.
+            locked: Whether the device should be locked.
+            actor: Who asked for it, used in the activity log.
+
+        Returns:
+            The state the device is now in.
+
+        Raises:
+            devicestore.DeviceError: If the device is unknown.
+        """
+        record = self.devices.get(device_id)
+        self.devices.set_locked(device_id, locked)
+        verb = 'Locked' if locked else 'Unlocked'
+        self.activity.add(
+            f'{verb} {record.display_name}', source=actor,
+            device_id=device_id, device_name=record.display_name)
+        return bool(locked)
+
     def device_view(self, record: devicestore.DeviceRecord) -> Dict[str, Any]:
         """Builds the dashboard view of one device.
 
@@ -439,6 +462,11 @@ class Application:
         view['display_name'] = record.display_name
         view['state'] = self.state_of(record.device_id)
         view['schedule_enabled'] = bool(document.get('schedule_enabled', True))
+        # Locked travels to the browser so the panel can draw the lock
+        # and ask before it acts.  secure_locked never does: it is set
+        # by editing the file, and nothing the panel can reach turns it
+        # off, so there is no reason to publish it either.
+        view['locked'] = bool(document.get('locked', False))
         view['snoozed_until'] = (snoozed.isoformat(timespec='seconds')
                                  if snoozed else '')
         view['rule_count'] = len(entries)

@@ -124,11 +124,70 @@ class PamDiagnosisTest(unittest.TestCase):
             self.assertIn('libpam', str(caught.exception))
 
 
+class RateLimitTest(unittest.TestCase):
+    """The global limit on how often PAM may be engaged."""
+
+    def test_one_a_second_by_default(self):
+        """The first check goes through; the next one waits."""
+        limit = auth.RateLimit()
+        self.assertEqual(limit.interval,
+                         auth.DEFAULT_PAM_RATE_LIMIT_SECONDS)
+        limit.take(now=100.0)
+        with self.assertRaises(auth.AuthError) as caught:
+            limit.take(now=100.5)
+        self.assertIn('0.5 seconds', str(caught.exception))
+
+    def test_the_slot_comes_back(self):
+        """Once the interval has passed another check is allowed."""
+        limit = auth.RateLimit(1.0)
+        limit.take(now=100.0)
+        limit.take(now=101.0)
+        limit.take(now=102.5)
+
+    def test_a_refusal_does_not_take_the_slot(self):
+        """Otherwise a caller in a loop would hold it for ever."""
+        limit = auth.RateLimit(1.0)
+        limit.take(now=100.0)
+        for moment in (100.1, 100.2, 100.3):
+            with self.assertRaises(auth.AuthError):
+                limit.take(now=moment)
+        limit.take(now=101.0)
+
+    def test_zero_turns_it_off(self):
+        """An operator who wants no limit can have none."""
+        limit = auth.RateLimit(0)
+        for moment in (100.0, 100.0, 100.0):
+            limit.take(now=moment)
+
+
+class EmptyPasswordTest(unittest.TestCase):
+    """Nothing empty is worth asking PAM about."""
+
+    def test_an_empty_password_is_refused(self):
+        """The guard the daemon and the helper both call."""
+        with self.assertRaises(auth.AuthError):
+            auth.refuse_empty_password('')
+
+    def test_a_password_is_left_alone(self):
+        """Anything else passes through without comment."""
+        self.assertIsNone(auth.refuse_empty_password('secret'))
+
+
 class AuthenticatorTest(unittest.TestCase):
     """Sign-in policy on top of PAM."""
 
+    def setUp(self):
+        """Leaves the global rate limit as it was found."""
+        self.addCleanup(auth.PAM_RATE_LIMIT.set_interval,
+                        auth.DEFAULT_PAM_RATE_LIMIT_SECONDS)
+        self.addCleanup(auth.PAM_RATE_LIMIT.reset)
+
     def build(self, **overrides) -> auth.Authenticator:
         """Builds an authenticator with the given settings.
+
+        The rate limit is off unless a test asks for it: these tests
+        make several attempts in a row, which is exactly what the limit
+        exists to stop, and none of them is about the limit.
 
         Args:
             **overrides: Fields to override on the default config.
@@ -136,6 +195,8 @@ class AuthenticatorTest(unittest.TestCase):
         Returns:
             The authenticator.
         """
+        overrides.setdefault('pam_rate_limit_seconds', 0)
+        auth.PAM_RATE_LIMIT.reset()
         return auth.Authenticator(config.PanelConfig(**overrides))
 
     def test_empty_credentials_are_refused_before_pam(self):
@@ -143,6 +204,79 @@ class AuthenticatorTest(unittest.TestCase):
         authenticator = self.build()
         with self.assertRaises(auth.AuthError):
             authenticator.authenticate('', '')
+
+    def test_an_empty_password_never_reaches_pam(self):
+        """A named account with no password is refused on this side."""
+        authenticator = self.build()
+        session = FakePamSession(accept=True)
+        with mock.patch.object(auth, 'new_authenticator',
+                               return_value=session):
+            with self.assertRaises(auth.AuthError) as caught:
+                authenticator.authenticate('ada', '')
+        self.assertIn('password', str(caught.exception))
+        self.assertEqual(session.calls, [],
+                         'PAM must not be asked about an empty password')
+
+    def test_an_empty_password_costs_nobody_their_turn(self):
+        """Refusing one must not consume the rate limited slot."""
+        authenticator = self.build(pam_rate_limit_seconds=1)
+        session = FakePamSession(accept=True)
+        with mock.patch.object(auth, 'new_authenticator',
+                               return_value=session):
+            for _ in range(3):
+                with self.assertRaises(auth.AuthError):
+                    authenticator.authenticate('ada', '')
+            self.assertEqual(authenticator.authenticate('ada', 'secret'),
+                             'ada')
+
+    def test_confirming_checks_the_password_again(self):
+        """A locked device's confirmation goes through the same PAM."""
+        authenticator = self.build(pam_service='kasapanel')
+        session = FakePamSession(accept=True)
+        with mock.patch.object(auth, 'new_authenticator',
+                               return_value=session):
+            self.assertEqual(authenticator.confirm('ada', 'secret'), 'ada')
+        self.assertEqual(session.calls, [('ada', 'secret', 'kasapanel')])
+
+    def test_a_bad_confirmation_is_refused(self):
+        """A wrong password confirms nothing."""
+        authenticator = self.build()
+        with mock.patch.object(auth, 'new_authenticator',
+                               return_value=FakePamSession(accept=False)):
+            with self.assertRaises(auth.AuthError) as caught:
+                authenticator.confirm('ada', 'wrong')
+        self.assertIn('did not match', str(caught.exception))
+
+    def test_confirming_obeys_the_rate_limit(self):
+        """One confirmation a second, like every other PAM check."""
+        authenticator = self.build(pam_rate_limit_seconds=1)
+        with mock.patch.object(auth, 'new_authenticator',
+                               return_value=FakePamSession(accept=True)):
+            self.assertEqual(authenticator.confirm('ada', 'secret'), 'ada')
+            with self.assertRaises(auth.AuthError) as caught:
+                authenticator.confirm('ada', 'secret')
+        self.assertIn('try again', str(caught.exception))
+
+    def test_the_rate_limit_is_global_not_per_account(self):
+        """A list of names must not buy a list of attempts."""
+        authenticator = self.build(pam_rate_limit_seconds=1)
+        session = FakePamSession(accept=True)
+        with mock.patch.object(auth, 'new_authenticator',
+                               return_value=session):
+            self.assertEqual(authenticator.authenticate('ada', 'secret'),
+                             'ada')
+            with self.assertRaises(auth.AuthError):
+                authenticator.authenticate('grace', 'secret')
+            with self.assertRaises(auth.AuthError):
+                authenticator.authenticate('turing', 'secret')
+        self.assertEqual(len(session.calls), 1)
+
+    def test_the_rate_limit_is_configurable(self):
+        """The gap between checks comes from the configuration."""
+        self.build(pam_rate_limit_seconds=5)
+        self.assertEqual(auth.PAM_RATE_LIMIT.interval, 5.0)
+        self.build(pam_rate_limit_seconds=0)
+        self.assertEqual(auth.PAM_RATE_LIMIT.interval, 0.0)
 
     def test_missing_pam_is_reported_at_sign_in(self):
         """The sign-in error names the real cause."""

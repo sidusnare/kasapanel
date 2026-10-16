@@ -262,6 +262,78 @@ def _session_cookie(token: str, seconds: int) -> str:
     return '; '.join(parts)
 
 
+# The actions a locked device will not do without being asked twice.
+# Resolved through the action table, so the aliases -- "enable" for on,
+# "disable" for off -- are guarded as well as the plain words.
+GUARDED_ACTIONS = ('on', 'off', 'toggle')
+
+
+def _canonical_action(name: str) -> str:
+    """Names an action the way the action table does.
+
+    Args:
+        name: The action keyword as it arrived, alias or not.
+
+    Returns:
+        The canonical name, or an empty string for an unknown action --
+        which the handler itself will report properly a moment later.
+    """
+    try:
+        return actions.resolve(name).name
+    except actions.ActionError:
+        return ''
+
+
+def lock_guard(app: Any, request: 'Request', session: Optional[auth.Session],
+               device_id: str, what: str) -> Optional['Response']:
+    """Refuses a change to a locked device until it is confirmed.
+
+    The dialog the browser shows is not the lock; this is.  A request
+    that arrives without ``confirm`` is turned away with 409 so the
+    panel knows to ask, and so does anything else holding a session: a
+    guard that lives only in the interface guards nothing.
+
+    When the device is also ``secure_locked`` the confirmation must
+    carry the password of the account the session belongs to, which is
+    checked against PAM exactly as a sign in is.  The browser is not
+    told that in advance -- it finds out by being asked for it here --
+    because ``secure_locked`` is not a setting the panel can see.
+
+    Args:
+        app: The application.
+        request: The decoded request.
+        session: The current session.
+        device_id: Identifier of the device.
+        what: What is about to happen, for the message the dialog shows.
+
+    Returns:
+        ``None`` when the change may go ahead, otherwise the response to
+        send instead of making it.
+    """
+    record = app.devices.get(device_id)
+    if not app.devices.is_locked(device_id):
+        return None
+    secure = app.devices.is_secure_locked(device_id)
+    if not request.flag('confirm'):
+        return error(409, f'{record.display_name} is locked: confirm '
+                          f'{what}.', locked=True, needs_password=secure)
+    if not secure:
+        return None
+    username = session.username if session else ''
+    try:
+        app.authenticator.confirm(username, request.text('password'))
+    except auth.AuthError as err:
+        app.activity.add(
+            f'Refused {what} on {record.display_name}: {err}',
+            level='warning', source=username or 'dashboard',
+            device_id=device_id, device_name=record.display_name)
+        # Not 401: the session is perfectly good, it is this one change
+        # that has not been confirmed, and a 401 would send the panel
+        # back to the sign-in page over a mistyped password.
+        return error(403, str(err), locked=True, needs_password=True)
+    return None
+
+
 def _device_payload(app: Any, device_id: str) -> Dict[str, Any]:
     """Builds the full view of one device.
 
@@ -476,6 +548,10 @@ def update_device(app: Any, request: Request, params: Tuple[str, ...],
                   session: Optional[auth.Session]) -> Response:
     """Updates the editable fields of a device.
 
+    The body may carry ``alias``, ``host``, ``enabled``, ``notes`` and
+    ``locked``.  There is no ``secure_locked``: it is not a setting the
+    panel can reach, by design.
+
     Args:
         app: The application.
         request: The decoded request.
@@ -485,16 +561,28 @@ def update_device(app: Any, request: Request, params: Tuple[str, ...],
     Returns:
         The updated device view.
     """
+    device_id = params[0]
+    actor = session.username if session else 'dashboard'
+    # Unlocking is itself a change a locked device will not make
+    # unasked; locking one is not, since nobody needs protecting from
+    # more care being taken.
+    if 'locked' in request.body and not request.flag('locked', True):
+        refused = lock_guard(app, request, session, device_id,
+                             'unlocking it')
+        if refused is not None:
+            return refused
     changes = {name: request.body[name]
                for name in ('alias', 'host', 'enabled', 'notes')
                if name in request.body}
-    record = app.devices.update(params[0], changes)
+    record = app.devices.update(device_id, changes)
     if 'host' in changes:
         app.bridge.forget(record.host)
-    actor = session.username if session else 'dashboard'
-    app.activity.add(f'Updated {record.display_name}', source=actor,
-                     device_id=record.device_id,
-                     device_name=record.display_name)
+    if 'locked' in request.body:
+        app.set_locked(device_id, request.flag('locked', True), actor=actor)
+    if changes:
+        app.activity.add(f'Updated {record.display_name}', source=actor,
+                         device_id=record.device_id,
+                         device_name=record.display_name)
     return Response(payload={'device': app.device_view(record)})
 
 
@@ -538,6 +626,11 @@ def device_action(app: Any, request: Request, params: Tuple[str, ...],
         raw_arguments = [raw_arguments]
     arguments = [str(item) for item in raw_arguments]
     actor = session.username if session else 'dashboard'
+    if _canonical_action(action) in GUARDED_ACTIONS:
+        refused = lock_guard(app, request, session, params[0],
+                             f'switching it ({action})')
+        if refused is not None:
+            return refused
     try:
         result = app.run_action(params[0], action, arguments, actor=actor)
     except actions.ActionError as err:
@@ -612,6 +705,19 @@ def put_schedule(app: Any, request: Request, params: Tuple[str, ...],
     device_id = params[0]
     record = app.devices.get(device_id)
     script = request.text('schedule')
+    # One confirmation covers the save, whether what changed is the
+    # script, whether the schedule runs at all, or both.
+    was_enabled = bool(app.devices.device_document(device_id).get(
+        'schedule_enabled', True))
+    wants_enabled = request.flag('schedule_enabled', was_enabled)
+    if wants_enabled != was_enabled:
+        what = ('enabling its schedule' if wants_enabled
+                else 'disabling its schedule')
+    else:
+        what = 'saving its schedule'
+    refused = lock_guard(app, request, session, device_id, what)
+    if refused is not None:
+        return refused
     summary = schedule_lib.summarise(script)
     if not summary['valid']:
         return error(400, 'the schedule has errors', summary=summary)
@@ -670,6 +776,10 @@ def snooze_device(app: Any, request: Request, params: Tuple[str, ...],
         When the snooze ends, and the fresh device view.
     """
     actor = session.username if session else 'dashboard'
+    refused = lock_guard(app, request, session, params[0],
+                         'snoozing its schedule')
+    if refused is not None:
+        return refused
     until = app.snooze(params[0], request.text('for'), actor=actor)
     return Response(payload={
         'snoozed_until': until.isoformat(timespec='seconds'),

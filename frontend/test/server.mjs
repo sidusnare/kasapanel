@@ -37,12 +37,35 @@ function localZone() {
 }
 
 export function createServer({acceptCookie = true, lastResort = false,
-  hostZone = ''} = {}) {
+  hostZone = '', locked = false, securePassword = ''} = {}) {
   const calls = [];
   let signedIn = false;
   const token = 'session-token-xyz';
   const csrf = 'csrf-token-abc';
-  const devices = fixture('dashboard').devices.map((d) => ({...d}));
+  const devices = fixture('dashboard').devices
+    .map((d) => ({...d, locked: Boolean(locked)}));
+
+  // The lock as the daemon enforces it: a change to a locked device
+  // needs confirm, and a secure_locked one needs the password too --
+  // which the browser is never told in advance, only asked for.
+  function refuseUnconfirmed(device, body, what) {
+    if (!device || !device.locked) {
+      return null;
+    }
+    if (!body.confirm) {
+      return {status: 409, payload: {
+        error: `${device.display_name} is locked: confirm ${what}.`,
+        locked: true, needs_password: Boolean(securePassword)}};
+    }
+    if (securePassword && body.password !== securePassword) {
+      return {status: 403, payload: {
+        error: body.password
+          ? 'that username and password did not match'
+          : 'enter a password',
+        locked: true, needs_password: true}};
+    }
+    return null;
+  }
 
   async function handle(url, options) {
     const method = (options.method || 'GET').toUpperCase();
@@ -141,9 +164,32 @@ export function createServer({acceptCookie = true, lastResort = false,
         {host: '10.0.0.7', alias: 'Hall lamp', model: 'HS100', known: false},
       ], seconds: 1});
     }
+    const patch = pathname.match(/^\/api\/devices\/([^/]+)$/);
+    if (patch && method === 'PATCH') {
+      const device = devices.find((d) => d.device_id === patch[1]);
+      if ('locked' in body && !body.locked) {
+        const refused = refuseUnconfirmed(device, body, 'unlocking it');
+        if (refused) {
+          return reply(refused.status, refused.payload);
+        }
+      }
+      const next = {...device, ...('locked' in body
+        ? {locked: Boolean(body.locked)} : {}),
+      ...('alias' in body
+        ? {alias: body.alias, display_name: body.alias || device.host} : {})};
+      devices[devices.indexOf(device)] = next;
+      return reply(200, {device: next});
+    }
     const action = pathname.match(/^\/api\/devices\/([^/]+)\/action$/);
     if (action) {
       const device = devices.find((d) => d.device_id === action[1]);
+      if (['on', 'off', 'toggle'].includes(body.action)) {
+        const refused = refuseUnconfirmed(device, body,
+          `switching it (${body.action})`);
+        if (refused) {
+          return reply(refused.status, refused.payload);
+        }
+      }
       const next = {...device,
         state: {...device.state, is_on: body.action === 'on'
           ? true : body.action === 'off' ? false : !device.state.is_on}};
@@ -158,6 +204,11 @@ export function createServer({acceptCookie = true, lastResort = false,
         devices[devices.indexOf(device)] = next;
         return reply(200,
           {device: next, lifted: Boolean(device.snoozed_until)});
+      }
+      const refused = refuseUnconfirmed(device, body,
+        'snoozing its schedule');
+      if (refused) {
+        return reply(refused.status, refused.payload);
       }
       if (!/^\d/.test(body.for) && !body.for.startsWith('tomorrow')) {
         return reply(400, {error: `"${body.for}" is not a time span or a `
@@ -180,6 +231,12 @@ export function createServer({acceptCookie = true, lastResort = false,
       return reply(200, fixture('schedule'));
     }
     if (schedule && method === 'PUT') {
+      const device = devices.find((d) => d.device_id === schedule[1]);
+      const refused = refuseUnconfirmed(device, body,
+        'saving its schedule');
+      if (refused) {
+        return reply(refused.status, refused.payload);
+      }
       if (body.schedule.includes('levitate')) {
         return reply(400, {error: 'the schedule has errors', summary: {
           valid: false, rule_count: 0, rules: [], next_runs: [],

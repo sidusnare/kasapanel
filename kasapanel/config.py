@@ -70,6 +70,8 @@ class PanelConfig:
             privileged authentication helper has been forked.  Empty
             means www-data, then httpd, then nobody.
         pam_service: PAM service name used to check passwords.
+        pam_rate_limit_seconds: Shortest gap between two PAM password
+            checks anywhere in the daemon; 0 turns the limit off.
         allowed_users: Users allowed to sign in; empty means any user
             that PAM accepts.
         allowed_groups: Groups whose members are allowed to sign in.
@@ -96,6 +98,7 @@ class PanelConfig:
     tls_key: str = ''
     daemon_user: str = ''
     pam_service: str = 'login'
+    pam_rate_limit_seconds: float = 1.0
     allowed_users: List[str] = dataclasses.field(default_factory=list)
     allowed_groups: List[str] = dataclasses.field(default_factory=list)
     session_minutes: int = 720
@@ -162,7 +165,8 @@ def _field_kinds() -> Dict[str, str]:
     so it stays correct however annotations are evaluated.
 
     Returns:
-        Field names mapped to ``bool``, ``int``, ``str`` or ``list``.
+        Field names mapped to ``bool``, ``int``, ``float``, ``str`` or
+        ``list``.
     """
     kinds = {}
     template = PanelConfig()
@@ -172,6 +176,8 @@ def _field_kinds() -> Dict[str, str]:
             kinds[field.name] = 'bool'
         elif isinstance(default, int):
             kinds[field.name] = 'int'
+        elif isinstance(default, float):
+            kinds[field.name] = 'float'
         elif isinstance(default, list):
             kinds[field.name] = 'list'
         else:
@@ -203,6 +209,8 @@ def _coerce(name: str, value: Any, current: Any) -> Any:
             return bool(value)
         if kind == 'int':
             return int(value)
+        if kind == 'float':
+            return float(value)
         if kind == 'str':
             return str(value)
         if kind == 'list':

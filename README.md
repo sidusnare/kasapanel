@@ -25,7 +25,7 @@ Built on [python-kasa](https://python-kasa.readthedocs.io/).
 - **Schedules** — a text editor per device. Errors are reported with line
   numbers, and the next five firings are previewed before you save.
 - **Devices** — broadcast scan for devices on the LAN, or add one by IP or
-  hostname. Rename, disable, remove.
+  hostname. Rename, disable, remove, and lock.
 - **Activity** — a bounded log of what the daemon and its users did.
 - **Settings** — everything from `config.json`, editable in the browser.
 
@@ -36,6 +36,9 @@ The readouts across the top end with the host clock, to the second and in
 the daemon's own time zone. If your browser keeps a different zone, the
 same instant as you see it follows in parentheses, so a schedule written
 in host time is never read in the wrong one by mistake.
+
+A device can be **locked**, which makes the panel ask before it does
+anything that changes that device. See [Locking a device](#locking-a-device).
 
 The foot of the side rail shows the Kasa Panel and python-kasa versions
 beside the sign-out button, which is the first thing to quote in a bug
@@ -301,6 +304,23 @@ By default any account PAM accepts may sign in. Narrow that with
 account must match one of them. Repeated failures lock an account out for
 `lockout_seconds`.
 
+Two rules apply before PAM is reached at all:
+
+- **An empty password is refused without engaging PAM.** `pam_unix` with
+  `nullok` accepts an empty password for an account that has none, and a
+  conversation module can sit waiting for input that never comes. Neither
+  is worth finding out, and an empty password is not a credential. The
+  privileged helper applies the same rule, so it holds even for something
+  speaking its protocol directly.
+- **PAM is engaged at most once a second, daemon-wide.** The gap is
+  `pam_rate_limit_seconds`; set it to `0` to turn the limit off. It is
+  global rather than per account, because a limit counted per account is
+  no limit to somebody working through a list of names — so a second
+  attempt arriving within the second is refused with "try again in …",
+  whoever it came from. Only a check that actually reaches PAM takes the
+  slot: a refusal does not, or a caller in a loop would hold it for ever
+  and nobody could sign in.
+
 Sessions are held in memory (so a restart signs everyone out), the cookie is
 `HttpOnly; Secure; SameSite=Strict`, and every write request must carry the
 session's CSRF token in the `X-Kasa-CSRF` header.
@@ -411,6 +431,69 @@ The snooze is stored as `snoozed_until` in the device's own file, so it
 survives a restart. Once it has passed, the scheduler removes it and notes
 in the activity log that the rules are running again.
 
+## Locking a device
+
+Some outlets should not be switched by a stray click: the freezer, the
+server, the aquarium heater. Each device has a `locked` flag, off by
+default, which makes the panel ask a yes/no question before it does
+anything that changes that device. The checkbox for it is in the
+**Locked** column of the Devices tab, to the left of that device's
+buttons.
+
+While a device is locked:
+
+- its card on the Panel tab carries a 🔒 beside the name, and **switch
+  on**, **switch off**, **toggle** and **snooze** each ask first;
+- on the Schedules tab, **saving** the schedule asks first, and the
+  question names what is actually changing — saving, enabling or
+  disabling;
+- clearing the checkbox asks first, since unlocking is the one change
+  the lock exists to slow down. Ticking it does not: nobody needs
+  protecting from more care being taken.
+
+Reading is never guarded. **Poll now**, the sliders, **LED off** and
+**Resume schedule now** behave as they always did, and so do renaming,
+disabling and removing a device: the lock is about what the device does,
+not about its label.
+
+The dialog is not the lock. The daemon refuses any guarded request that
+does not say `"confirm": true`, with status 409 — a guard that lives in
+the browser guards nothing, since anything holding a session can skip it.
+The 409 carries `locked` and `needs_password` so the panel knows to ask,
+and it is also what re-opens the dialog when the browser's view of a
+device turns out to be a poll out of date.
+
+### `secure_locked`
+
+A device's file may also carry `secure_locked`. When it is true, every
+confirmation for that device asks for your password as well as your
+consent, and the password is checked against PAM — same service, same
+lockout counters, same rate limit as signing in — before the change is
+allowed. A session alone is not enough, because an unattended browser is
+exactly what this guards against.
+
+`secure_locked` is **not** a setting in the panel or the API. It is set by
+editing the device's file:
+
+```json
+{
+  "device_id": "4d3f1e8a-...",
+  "locked": true,
+  "secure_locked": true
+}
+```
+
+That is the point of it: `locked` can be cleared by anyone who can sign
+in, but nothing reachable over HTTP can turn `secure_locked` off, and no
+payload mentions it. The browser only ever learns of it by being asked
+for a password, which is why the dialog shows that field after the first
+**Yes** rather than before it. `kasapanel check` prints it beside each
+device, since that runs on the host where the file lives anyway.
+
+Both fields appear in the device's own file. `locked` is also published
+to `/metrics` as `kasapanel_device_locked`; `secure_locked` is not
+published anywhere.
+
 ## Files
 
 ```
@@ -429,6 +512,10 @@ the way to be sure that cannot happen is not to do it. An identifier
 that is not a UUID is refused rather than scrubbed, so no string
 arriving over HTTP can name a file at all.
 
+A device's own file holds its schedule, whether that schedule runs, any
+snooze, its last known state, and the two lock fields described under
+[Locking a device](#locking-a-device).
+
 Identity across a DHCP lease change is kept in the record instead: a
 device is matched by MAC address, then by host, and keeps the identifier
 it was given the first time. Writes are atomic: a
@@ -446,6 +533,7 @@ Editable in the settings tab, or by hand in `config.json`:
 | `tls_certificate` / `tls_key` | generated | paths to TLS material |
 | `daemon_user` | empty | unprivileged account to run as; root is refused |
 | `pam_service` | `login` | PAM service name |
+| `pam_rate_limit_seconds` | `1.0` | shortest gap between PAM checks, daemon-wide; `0` disables |
 | `allowed_users` / `allowed_groups` | empty | sign-in policy |
 | `session_minutes` | `720` | idle timeout |
 | `max_login_failures` / `lockout_seconds` | `5` / `300` | lockout policy |
@@ -659,10 +747,10 @@ What it publishes: daemon uptime and version, scheduler state and rules
 run, session **count**, activity counts by level, PAM and helper health,
 certificate expiry, and per device its name, address, model, whether it
 is reachable and on, brightness, colour temperature, power, energy,
-signal, schedule rule counts and next firing.
+signal, whether it is locked, schedule rule counts and next firing.
 
 What it does not publish: no user names, no passwords, no key material,
-no session or CSRF tokens. It does list device names and addresses,
+no session or CSRF tokens, and never `secure_locked`. It does list device names and addresses,
 which is what the numbers would be meaningless without — so if the
 endpoint is reachable from somewhere you would rather it were not,
 firewall it or set `metrics_enabled` to false.
@@ -819,7 +907,7 @@ GET    /api/dashboard                devices, state, next runs, summary
 GET    /api/devices                  inventory
 POST   /api/devices                  add {host, alias}
 GET    /api/devices/<id>             one device
-PATCH  /api/devices/<id>             rename, enable, annotate
+PATCH  /api/devices/<id>             rename, enable, annotate, {locked}
 DELETE /api/devices/<id>             remove
 POST   /api/devices/<id>/action      {action, arguments}
 POST   /api/devices/<id>/refresh     poll now
@@ -838,6 +926,16 @@ GET    /api/reference                the action and keyword vocabulary
 GET    /healthz                      unauthenticated liveness probe
 GET    /metrics                      unauthenticated Prometheus metrics
 ```
+
+A locked device refuses the requests that change it unless the body
+carries `"confirm": true`, and answers 409 with `locked` and
+`needs_password` when it does not. When the device is `secure_locked`,
+the body must carry `"password"` as well, which is checked against PAM; a
+wrong one is 403, not 401, because the session itself is still good. The
+guarded requests are the action endpoint for `on`, `off` and `toggle`
+(aliases included), `PUT .../schedule`, `POST .../snooze`, and a `PATCH`
+that sets `locked` to false. There is no `secure_locked` field on any
+request or response.
 
 ## Design
 

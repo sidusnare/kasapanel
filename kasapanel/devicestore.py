@@ -14,6 +14,13 @@ Two kinds of file are managed here:
 
 Splitting them keeps the inventory small enough to read at a glance and
 lets a device be backed up, copied or edited on its own.
+
+Two of the per-device fields guard the device rather than describe it.
+``locked`` asks the panel to confirm before it switches the device,
+changes its schedule or snoozes it, and ``secure_locked`` asks for the
+operator's password as part of that confirmation.  ``secure_locked`` is
+deliberately not part of the API or the interface: it is set by editing
+the file, so somebody who can only reach the panel cannot turn it off.
 """
 
 import dataclasses
@@ -179,6 +186,8 @@ def default_device_document(device_id: str) -> Dict[str, Any]:
         'device_id': device_id,
         'schedule': schedule_lib.EXAMPLE_SCRIPT,
         'schedule_enabled': True,
+        'locked': False,
+        'secure_locked': False,
         'created_at': _now(),
         'updated_at': _now(),
         'last_seen': '',
@@ -469,6 +478,8 @@ class DeviceStore:
             document.setdefault('device_id', device_id)
             document.setdefault('schedule', '')
             document.setdefault('schedule_enabled', True)
+            document.setdefault('locked', False)
+            document.setdefault('secure_locked', False)
             return document
 
     def save_device_document(self, device_id: str,
@@ -532,6 +543,48 @@ class DeviceStore:
         document = self.device_document(device_id)
         document['schedule_enabled'] = bool(enabled)
         return self.save_device_document(device_id, document)
+
+    def is_locked(self, device_id: str) -> bool:
+        """Says whether a device asks to be confirmed before it acts.
+
+        Args:
+            device_id: Identifier of the device.
+
+        Returns:
+            True when the device is locked.
+        """
+        return bool(self.device_document(device_id).get('locked', False))
+
+    def is_secure_locked(self, device_id: str) -> bool:
+        """Says whether confirming this device needs the password too.
+
+        This answers a question the API asks itself; it is never sent to
+        a browser as a setting, because the point of the field is that
+        the panel cannot turn it off.
+
+        Args:
+            device_id: Identifier of the device.
+
+        Returns:
+            True when a confirmation must carry the password.
+        """
+        return bool(
+            self.device_document(device_id).get('secure_locked', False))
+
+    def set_locked(self, device_id: str, locked: bool) -> Dict[str, Any]:
+        """Locks or unlocks a device.
+
+        Args:
+            device_id: Identifier of the device.
+            locked: Whether the device should be locked.
+
+        Returns:
+            The stored per-device document.
+        """
+        with self._lock:
+            document = self.device_document(device_id)
+            document['locked'] = bool(locked)
+            return self.save_device_document(device_id, document)
 
     def snooze(self, device_id: str,
                until: datetime.datetime) -> Dict[str, Any]:

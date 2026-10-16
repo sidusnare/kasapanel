@@ -14,6 +14,7 @@
             "display_name": "Bench plug",
             "state": {},
             "schedule_enabled": true,
+            "locked": false,
             "rule_count": 1,
             "schedule_problems": 0,
             "next_runs": [

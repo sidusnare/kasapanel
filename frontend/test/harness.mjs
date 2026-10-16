@@ -17,7 +17,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const staticDir = path.join(here, '..', '..', 'kasapanel', 'static');
 
 export async function mount({acceptCookie = true, lastResort = false,
-  hostZone = ''} = {}) {
+  hostZone = '', locked = false, securePassword = ''} = {}) {
   const html = fs.readFileSync(path.join(staticDir, 'index.html'), 'utf8');
   const bundle = fs.readFileSync(path.join(staticDir, 'bundle.js'), 'utf8');
   const errors = [];
@@ -32,7 +32,8 @@ export async function mount({acceptCookie = true, lastResort = false,
     virtualConsole,
   });
   const {window} = dom;
-  const server = createServer({acceptCookie, lastResort, hostZone});
+  const server = createServer({acceptCookie, lastResort, hostZone, locked,
+    securePassword});
   window.fetch = (url, options = {}) => server.handle(url, options);
   window.addEventListener('error', (event) => errors.push(event.message));
 

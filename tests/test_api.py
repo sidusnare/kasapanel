@@ -517,5 +517,229 @@ class ApiTest(unittest.TestCase):
         self.assertIn('@daily', keywords)
 
 
+class LockTest(unittest.TestCase):
+    """A locked device is asked twice before it does anything."""
+
+    def setUp(self):
+        """Builds an application with one device in it."""
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        config_path = os.path.join(self.tmp.name, 'config.json')
+        jsonstore.write_json(config_path, {
+            'state_dir': os.path.join(self.tmp.name, 'state'),
+            'log_level': 'CRITICAL',
+        })
+        self.app = app_lib.Application(config_path)
+        self.app.load()
+        self.app.bridge = FakeBridge()
+        self.session = self.app.sessions.create('tester')
+        self.device_id = self.app.devices.add('10.0.0.5').device_id
+
+    def request(self, method: str, path: str,
+                body: Any = None) -> api.Response:
+        """Builds and dispatches one signed in request.
+
+        Args:
+            method: HTTP method.
+            path: Request path.
+            body: JSON body, if any.
+
+        Returns:
+            The response.
+        """
+        headers = {auth.CSRF_HEADER: self.session.csrf_token}
+        request = api.Request(
+            method=method, path=path, body=body or {},
+            cookies={auth.SESSION_COOKIE: self.session.token},
+            headers=lambda name, default='': headers.get(name, default),
+            remote='10.0.0.9')
+        return api.dispatch(self.app, request)
+
+    def lock(self, secure: bool = False) -> None:
+        """Locks the device by writing its file, as an operator would.
+
+        Args:
+            secure: Whether to set ``secure_locked`` as well.
+        """
+        document = self.app.devices.device_document(self.device_id)
+        document['locked'] = True
+        document['secure_locked'] = secure
+        self.app.devices.save_device_document(self.device_id, document)
+
+    def test_a_device_starts_unlocked(self):
+        """The default is the one that gets in nobody's way."""
+        view = self.request(
+            'GET', f'/api/devices/{self.device_id}').payload['device']
+        self.assertFalse(view['locked'])
+        self.assertNotIn('secure_locked', view)
+
+    def test_locking_needs_no_confirmation(self):
+        """Nobody needs protecting from more care being taken."""
+        response = self.request('PATCH', f'/api/devices/{self.device_id}',
+                                {'locked': True})
+        self.assertEqual(response.status, 200)
+        self.assertTrue(response.payload['device']['locked'])
+        self.assertTrue(self.app.devices.is_locked(self.device_id))
+
+    def test_unlocking_must_be_confirmed(self):
+        """Clicking the box off is the thing the lock is there for."""
+        self.lock()
+        refused = self.request('PATCH', f'/api/devices/{self.device_id}',
+                               {'locked': False})
+        self.assertEqual(refused.status, 409)
+        self.assertTrue(refused.payload['locked'])
+        self.assertFalse(refused.payload['needs_password'])
+        self.assertTrue(self.app.devices.is_locked(self.device_id))
+
+        allowed = self.request('PATCH', f'/api/devices/{self.device_id}',
+                               {'locked': False, 'confirm': True})
+        self.assertEqual(allowed.status, 200)
+        self.assertFalse(self.app.devices.is_locked(self.device_id))
+
+    def test_renaming_a_locked_device_is_not_guarded(self):
+        """The lock is about what the device does, not its label."""
+        self.lock()
+        response = self.request('PATCH', f'/api/devices/{self.device_id}',
+                                {'alias': 'Bench plug'})
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.payload['device']['alias'], 'Bench plug')
+
+    def test_switching_must_be_confirmed(self):
+        """On, off and toggle all ask first."""
+        self.lock()
+        for action in ('on', 'off', 'toggle', 'disable'):
+            refused = self.request(
+                'POST', f'/api/devices/{self.device_id}/action',
+                {'action': action})
+            self.assertEqual(refused.status, 409, action)
+            self.assertTrue(refused.payload['locked'])
+        self.assertEqual(self.app.bridge.commands, [])
+
+        allowed = self.request(
+            'POST', f'/api/devices/{self.device_id}/action',
+            {'action': 'on', 'confirm': True})
+        self.assertEqual(allowed.status, 200)
+        self.assertEqual(self.app.bridge.commands, ['on'])
+
+    def test_the_quiet_actions_are_left_alone(self):
+        """A lock is not a reason to ask before reading a meter."""
+        self.lock()
+        for action in ('refresh', 'brightness'):
+            arguments = ['50'] if action == 'brightness' else []
+            response = self.request(
+                'POST', f'/api/devices/{self.device_id}/action',
+                {'action': action, 'arguments': arguments})
+            self.assertEqual(response.status, 200, action)
+
+    def test_saving_a_schedule_must_be_confirmed(self):
+        """The schedule is as much a switch as the switch is."""
+        self.lock()
+        path = f'/api/devices/{self.device_id}/schedule'
+        refused = self.request('PUT', path, {'schedule': '@daily on'})
+        self.assertEqual(refused.status, 409)
+        self.assertIn('saving its schedule', refused.payload['error'])
+        self.assertNotIn('@daily on',
+                         self.app.devices.get_schedule(self.device_id))
+
+        allowed = self.request('PUT', path,
+                               {'schedule': '@daily on', 'confirm': True})
+        self.assertEqual(allowed.status, 200)
+        self.assertEqual(self.app.devices.get_schedule(self.device_id),
+                         '@daily on')
+
+    def test_enabling_and_disabling_name_themselves(self):
+        """The question says which of the three this is."""
+        self.lock()
+        path = f'/api/devices/{self.device_id}/schedule'
+        off = self.request('PUT', path, {'schedule': '@daily on',
+                                         'schedule_enabled': False})
+        self.assertEqual(off.status, 409)
+        self.assertIn('disabling its schedule', off.payload['error'])
+        self.request('PUT', path, {'schedule': '@daily on',
+                                   'schedule_enabled': False,
+                                   'confirm': True})
+        on = self.request('PUT', path, {'schedule': '@daily on',
+                                        'schedule_enabled': True})
+        self.assertEqual(on.status, 409)
+        self.assertIn('enabling its schedule', on.payload['error'])
+
+    def test_snoozing_must_be_confirmed(self):
+        """Holding the schedule is a change like any other."""
+        self.lock()
+        path = f'/api/devices/{self.device_id}/snooze'
+        refused = self.request('POST', path, {'for': '2h'})
+        self.assertEqual(refused.status, 409)
+        document = self.app.devices.device_document(self.device_id)
+        self.assertFalse(document.get('snoozed_until'))
+
+        allowed = self.request('POST', path, {'for': '2h', 'confirm': True})
+        self.assertEqual(allowed.status, 200)
+        self.assertTrue(allowed.payload['snoozed_until'])
+
+    def test_an_unlocked_device_is_not_asked_anything(self):
+        """The guard is silent until somebody turns it on."""
+        response = self.request(
+            'POST', f'/api/devices/{self.device_id}/action',
+            {'action': 'on'})
+        self.assertEqual(response.status, 200)
+
+    def test_secure_locked_asks_for_the_password(self):
+        """Consent alone is not enough when the file says so."""
+        self.lock(secure=True)
+        self.app.authenticator = mock.Mock()
+        self.app.authenticator.confirm.return_value = 'tester'
+        path = f'/api/devices/{self.device_id}/action'
+
+        asked = self.request('POST', path, {'action': 'on'})
+        self.assertEqual(asked.status, 409)
+        self.assertTrue(asked.payload['needs_password'])
+        self.app.authenticator.confirm.assert_not_called()
+
+        allowed = self.request('POST', path, {'action': 'on',
+                                              'confirm': True,
+                                              'password': 'secret'})
+        self.assertEqual(allowed.status, 200)
+        self.app.authenticator.confirm.assert_called_once_with(
+            'tester', 'secret')
+
+    def test_a_wrong_password_confirms_nothing(self):
+        """And it is not reported as an expired session."""
+        self.lock(secure=True)
+        self.app.authenticator = mock.Mock()
+        self.app.authenticator.confirm.side_effect = auth.AuthError(
+            'that username and password did not match')
+        refused = self.request(
+            'POST', f'/api/devices/{self.device_id}/action',
+            {'action': 'on', 'confirm': True, 'password': 'wrong'})
+        self.assertEqual(refused.status, 403)
+        self.assertTrue(refused.payload['needs_password'])
+        self.assertEqual(self.app.bridge.commands, [])
+        said = [record['message'] for record in self.app.activity.records()]
+        self.assertTrue(any('Refused' in message for message in said), said)
+
+    def test_secure_locked_is_not_a_setting_the_panel_can_see(self):
+        """It is in the file, and in no payload and no request."""
+        self.lock(secure=True)
+        self.app.authenticator = mock.Mock()
+        self.app.authenticator.confirm.return_value = 'tester'
+        view = self.request(
+            'GET', f'/api/devices/{self.device_id}').payload['device']
+        self.assertNotIn('secure_locked', view)
+        dashboard = self.request('GET', '/api/dashboard').payload
+        self.assertNotIn('secure_locked', dashboard['devices'][0])
+
+        # Asking for it to be turned off changes nothing.
+        self.request('PATCH', f'/api/devices/{self.device_id}',
+                     {'secure_locked': False})
+        self.assertTrue(self.app.devices.is_secure_locked(self.device_id))
+
+    def test_a_lock_survives_a_schedule_being_saved(self):
+        """Writing the document must not drop the fields beside it."""
+        self.lock(secure=True)
+        self.app.devices.set_schedule(self.device_id, '@daily on')
+        self.assertTrue(self.app.devices.is_locked(self.device_id))
+        self.assertTrue(self.app.devices.is_secure_locked(self.device_id))
+
+
 if __name__ == '__main__':
     unittest.main()

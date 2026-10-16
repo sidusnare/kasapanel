@@ -160,6 +160,20 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(
             found['kasapanel_device_colour_temperature_kelvin'][0][1], '2700')
 
+    def test_the_lock_is_published_but_never_the_secure_one(self):
+        """A scrape may know a device is locked, and no more."""
+        found = self.render()
+        self.assertEqual(found['kasapanel_device_locked'][0][1], '0')
+        document = self.app.devices.device_document(self.record.device_id)
+        document['locked'] = True
+        document['secure_locked'] = True
+        self.app.devices.save_device_document(self.record.device_id,
+                                              document)
+        text = metrics.render(self.app)
+        self.assertIn('kasapanel_device_locked', text)
+        self.assertEqual(parse(text)['kasapanel_device_locked'][0][1], '1')
+        self.assertNotIn('secure', text)
+
     def test_readings_a_device_does_not_have_are_absent(self):
         """A plug with no dimmer publishes no brightness at all."""
         self.cache()

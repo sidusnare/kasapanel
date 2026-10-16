@@ -101,12 +101,17 @@ class ConfigTest(unittest.TestCase):
             'scheduler_enabled': 'no',
             'allowed_users': 'ada, grace lovelace',
             'session_minutes': 'not a number',
+            'pam_rate_limit_seconds': '2.5',
         })
         self.assertEqual(settings.listen_port, 9443)
         self.assertFalse(settings.scheduler_enabled)
         self.assertEqual(settings.allowed_users,
                          ['ada', 'grace', 'lovelace'])
         self.assertEqual(settings.session_minutes, 720)
+        self.assertEqual(settings.pam_rate_limit_seconds, 2.5)
+        # Nonsense falls back to the default, as it does for an int.
+        kept = store.update({'pam_rate_limit_seconds': 'often'})
+        self.assertEqual(kept.pam_rate_limit_seconds, 1.0)
 
     def test_unknown_keys_are_ignored(self):
         """Extra keys in the file do not upset loading."""
@@ -238,6 +243,54 @@ class DeviceStoreTest(unittest.TestCase):
                                              'enabled': False})
         self.assertEqual(self.store.get(record.device_id).alias, 'Fan')
         self.assertEqual(self.store.enabled_records(), [])
+
+    def test_a_device_is_unlocked_to_begin_with(self):
+        """Both lock fields exist, and neither is in the way."""
+        record = self.store.add('192.168.1.42')
+        document = self.store.device_document(record.device_id)
+        self.assertFalse(document['locked'])
+        self.assertFalse(document['secure_locked'])
+        self.assertFalse(self.store.is_locked(record.device_id))
+        self.assertFalse(self.store.is_secure_locked(record.device_id))
+
+    def test_locking_and_unlocking_a_device(self):
+        """The field is stored, and survives being read back."""
+        record = self.store.add('192.168.1.42')
+        self.store.set_locked(record.device_id, True)
+        self.assertTrue(self.store.is_locked(record.device_id))
+        reopened = devicestore.DeviceStore(
+            os.path.join(self.tmp.name, 'devices.json'),
+            os.path.join(self.tmp.name, 'devices'))
+        reopened.load()
+        self.assertTrue(reopened.is_locked(record.device_id))
+        self.store.set_locked(record.device_id, False)
+        self.assertFalse(self.store.is_locked(record.device_id))
+
+    def test_secure_locked_is_read_from_the_file_only(self):
+        """It is set by hand, and nothing in the store sets it."""
+        record = self.store.add('192.168.1.42')
+        document = self.store.device_document(record.device_id)
+        document['secure_locked'] = True
+        self.store.save_device_document(record.device_id, document)
+        self.assertTrue(self.store.is_secure_locked(record.device_id))
+        self.assertFalse(
+            hasattr(self.store, 'set_secure_locked'),
+            'the store must not offer a way to turn it off')
+        # The fields beside it are written without disturbing it.
+        self.store.set_locked(record.device_id, True)
+        self.store.set_schedule_enabled(record.device_id, False)
+        self.store.set_schedule(record.device_id, '@daily on')
+        self.assertTrue(self.store.is_secure_locked(record.device_id))
+
+    def test_an_older_device_file_gains_the_fields(self):
+        """A file written before the locks existed still reads."""
+        record = self.store.add('192.168.1.42')
+        jsonstore.write_json(self.store.device_path(record.device_id),
+                             {'device_id': record.device_id,
+                              'schedule': '@daily on'})
+        document = self.store.device_document(record.device_id)
+        self.assertFalse(document['locked'])
+        self.assertFalse(document['secure_locked'])
 
     def test_schedule_is_validated_before_saving(self):
         """A bad script is refused and the old one is kept."""

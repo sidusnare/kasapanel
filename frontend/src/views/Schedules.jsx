@@ -7,6 +7,7 @@
 
 import React, {useCallback, useEffect, useState} from 'react';
 import {api} from '../api.js';
+import ConfirmLock, {lockOutcome} from '../components/ConfirmLock.jsx';
 import {useToast} from '../components/Toasts.jsx';
 import {shortTime} from '../format.js';
 
@@ -87,8 +88,14 @@ export default function Schedules({devices, reference, onSaved}) {
   const [selected, setSelected] = useState('');
   const [script, setScript] = useState('');
   const [enabled, setEnabled] = useState(true);
+  // What the daemon last told us about the checkbox, so the question a
+  // locked device asks can name what is actually changing.
+  const [stored, setStored] = useState(true);
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState(null);
+
+  const device = devices.find((item) => item.device_id === selected);
 
   const load = useCallback(async (deviceId) => {
     if (!deviceId) {
@@ -98,6 +105,7 @@ export default function Schedules({devices, reference, onSaved}) {
       const answer = await api.get(`/api/devices/${deviceId}/schedule`);
       setScript(answer.schedule || '');
       setEnabled(Boolean(answer.schedule_enabled));
+      setStored(Boolean(answer.schedule_enabled));
       setSummary(answer.summary || null);
     } catch (err) {
       notify(err.message, true);
@@ -128,24 +136,53 @@ export default function Schedules({devices, reference, onSaved}) {
     }
   }
 
-  async function save() {
+  async function saveRun(confirmation) {
     setBusy(true);
     try {
       const answer = await api.put(`/api/devices/${selected}/schedule`, {
         schedule: script,
         schedule_enabled: enabled,
+        ...(confirmation || {}),
       });
       setSummary(answer.summary);
+      setStored(Boolean(answer.schedule_enabled));
       notify('Schedule saved.');
       onSaved();
+      return {done: true};
     } catch (err) {
       if (err.payload && err.payload.summary) {
         setSummary(err.payload.summary);
       }
-      notify(err.message, true);
+      return lockOutcome(err);
     } finally {
       setBusy(false);
     }
+  }
+
+  // Saving, enabling and disabling all arrive here, because they all
+  // leave through the one request.  A locked device asks first, and the
+  // question names whichever of the three this is.
+  async function save() {
+    const name = (device && device.display_name) || 'this device';
+    let question = `Save the schedule for ${name}?`;
+    if (enabled !== stored) {
+      question = enabled
+        ? `Enable the schedule for ${name}?`
+        : `Disable the schedule for ${name}?`;
+    }
+    if (device && device.locked) {
+      setAsk({question, run: saveRun});
+      return;
+    }
+    const outcome = await saveRun();
+    if (outcome.done) {
+      return;
+    }
+    if (outcome.locked) {
+      setAsk({question, run: saveRun});
+      return;
+    }
+    notify(outcome.error, true);
   }
 
   if (!devices.length) {
@@ -159,15 +196,22 @@ export default function Schedules({devices, reference, onSaved}) {
     <div className="split schedules">
       <div className="column">
         <div className="picker">
-          {devices.map((device) => (
+          {devices.map((item) => (
             <button
-              key={device.device_id}
+              key={item.device_id}
               type="button"
-              className={device.device_id === selected ? 'is-current' : ''}
-              onClick={() => { setSelected(device.device_id);
-                load(device.device_id); }}
+              className={item.device_id === selected ? 'is-current' : ''}
+              onClick={() => { setSelected(item.device_id);
+                load(item.device_id); }}
             >
-              {device.display_name}
+              {item.display_name}
+              {item.locked
+                ? (
+                  <span className="pick-lock" role="img" aria-label="locked">
+                    {'\u{1F512}'}
+                  </span>
+                )
+                : null}
             </button>
           ))}
         </div>
@@ -203,6 +247,18 @@ export default function Schedules({devices, reference, onSaved}) {
 
         <Findings summary={summary} />
         <Reference reference={reference} />
+        {ask
+          ? (
+            <ConfirmLock
+              title={`${(device && device.display_name) || 'This device'} `
+                + 'is locked'}
+              question={ask.question}
+              onConfirm={
+                (password) => ask.run({confirm: true, password})}
+              onClose={() => setAsk(null)}
+            />
+          )
+          : null}
       </div>
 
       <div className="column firings">

@@ -39,10 +39,13 @@ you have not executed.
 5. **Linux PAM** for authentication.
 6. Store the **daemon configuration, the device list, and each device's own
    configuration in separate JSON files**.
-7. Follow the **Google Python Style Guide**.
-8. Score **above 9.5 with pylint**, using Google's own `pylintrc`.
-9. Ship the **GPL-3 licence**, **SPDX file headers**, an **SPDX SBOM**, and
-   **SPDX AI headers** with an AI bill of materials.
+7. **Per-device locks**: a device can be marked so the panel confirms
+   before it changes it, with a stronger form, set only by editing the
+   device's file, that also demands the operator's password.
+8. Follow the **Google Python Style Guide**.
+9. Score **above 9.5 with pylint**, using Google's own `pylintrc`.
+10. Ship the **GPL-3 licence**, **SPDX file headers**, an **SPDX SBOM**,
+   and **SPDX AI headers** with an AI bill of materials.
 
 ## 2. Layout
 
@@ -86,7 +89,7 @@ be able to destroy a schedule.
 
 Three kinds of file: `config.json`, an inventory at `devices.json`, and one
 document per device under `devices/<device-id>.json` holding its schedule,
-its enabled flag and its last known state.
+its enabled flag, its two lock flags and its last known state.
 
 Give each device a **random UUID** when it is added, and use it as the
 file name. Nothing a device or a person supplies — host, MAC, alias,
@@ -165,12 +168,73 @@ today, so once it has passed refuse it with a hint to write
 past is refused. Every failure is one exception type with a message fit
 to show the operator.
 
-## 5. Authentication
+## 5. Locking a device
+
+Some outlets should not be switched by a stray click: the freezer, the
+server, the aquarium heater. Give every device
+a **`locked`** flag, default false, an ordinary configuration item on
+both the interface and the API, and a second flag **`secure_locked`**,
+also default false, which appears **only as a field in the device's
+file** — on no API request, in no API response, nowhere in the
+interface.
+
+While a device is locked, anything that changes it asks a yes/no
+question first: switching it on, off or toggling it; saving its
+schedule, or enabling or disabling that schedule; snoozing it; and
+clearing the lock itself, since unlocking is the one change the lock
+exists to slow down. Setting the lock asks nothing — nobody needs
+protecting from more care being taken — and neither does anything
+that only reads: polling, the sliders, the LED, resuming a snooze,
+renaming, disabling or removing. The question names what is actually
+about to happen, so saving, enabling and disabling a schedule read
+differently even though one request carries all three.
+
+When `secure_locked` is set, the confirmation asks for the operator's
+password as well, and it is checked against PAM — the same service,
+the same lockout counters, the same rate limit as a sign in — before
+the change is allowed. The session is not enough on its own, because an
+unattended browser is what this guards against.
+
+**The dialog is not the lock; the daemon is.** Refuse any guarded
+request that does not carry a confirmation, with 409 and enough in the
+payload (`locked`, `needs_password`) for a client to know what to ask
+for: a guard that lives in the browser guards nothing, since anything
+holding a session can skip it. That same refusal is what re-opens the
+dialog when the browser's view of a device is a poll out of date. A
+wrong confirmation password is **403, not 401** — the session is
+perfectly good, and a 401 would throw the operator back to the sign-in
+page over a typo.
+
+Do not let the browser be told about `secure_locked` in advance; it
+learns of it by being asked. The dialog therefore sends the plain "yes"
+first and reveals the password field only when the answer comes back
+asking for one. That is the price of a flag the panel cannot read, and
+the point of it: `locked` can be cleared by anyone who can sign in,
+while nothing reachable over HTTP can turn `secure_locked` off.
+
+## 6. Authentication
 
 Check passwords with PAM through a configurable service, defaulting to
 `login`. Support `allowed_users` and `allowed_groups`; when both are empty,
 anyone PAM accepts may sign in. Lock an account out after a configurable
 number of failures.
+
+Two rules come before PAM is engaged at all.
+
+**Refuse an empty password without engaging PAM.** `pam_unix` with
+`nullok` accepts an empty password for an account that has none, and a
+conversation module can sit waiting on input that never arrives; an
+empty password is not a credential either way. Put the guard where PAM
+is called, which means the privileged helper applies it too and not only
+the side that happens to ask politely.
+
+**Rate limit PAM to one check a second, across the whole daemon**, with
+the interval configurable and zero turning it off. Global, not per
+account: a limit counted per account is no limit to somebody working
+through a list of names. Refuse the attempt that arrives too soon rather
+than holding a thread until its turn, and let **only a check that
+actually reaches PAM take the slot** — if a refusal took it, a caller
+in a loop would hold it for ever and nobody could ever sign in.
 
 Sessions live in memory. Carry the session **two ways**: an
 `HttpOnly; Secure; SameSite=Lax` cookie, and an `X-Kasa-Session` header
@@ -189,7 +253,7 @@ token was simply unknown, how many sessions exist, when the daemon started,
 and whether a proxy header is present — so a user bounced back to the login
 page leaves evidence behind.
 
-## 6. Privilege separation
+## 7. Privilege separation
 
 PAM needs root; nothing else does. Start as root and separate the two.
 
@@ -300,7 +364,7 @@ start limit so a repeatedly dying helper does not restart in a loop, and
 keeps `@system-service` (which already permits `@setuid`) with
 `CAP_SETUID` and `CAP_SETGID` in the bounding set.
 
-## 7. Logging
+## 8. Logging
 
 The activity log is a bounded in-memory ring buffer, and it is also a
 **source for the ordinary daemon log**: every record it stores is written
@@ -313,7 +377,7 @@ recreating the directory if necessary. Rotation, deletion and a removed
 directory must all be survivable. A log that cannot be written falls back to
 stderr and must never take the daemon down.
 
-## 8. TLS certificate reloading
+## 9. TLS certificate reloading
 
 Renewal happens outside the daemon and must not require a restart, because a
 restart drops every session.
@@ -336,7 +400,7 @@ the context unable to complete any handshake at all. So prove the pair in a
 throwaway context first and only then load it into the live one. Treat a
 half-written file as "try again later". Record reloads in the activity log.
 
-## 9. HTTP and the API
+## 10. HTTP and the API
 
 Keep the API transport-free: decode a request into a plain object, route it,
 return a response object, and let the HTTP layer do sockets. This is what
@@ -350,8 +414,9 @@ a time without setting it, scan, settings, activity, sessions, a
 reference describing the language, and an unauthenticated `/healthz`.
 
 Map domain exceptions to status codes: unknown device 404, bad schedule or
-action 400, device unreachable 502, auth 401, storage 500, and 405 when the
-path exists under another method.
+action 400, device unreachable 502, auth 401, storage 500, 409 for a
+locked device that has not been confirmed, 403 for a confirmation whose
+password is wrong, and 405 when the path exists under another method.
 
 Serve an unauthenticated Prometheus endpoint at `/metrics` in the
 standard text exposition format. **A scrape must never poll a device**:
@@ -361,7 +426,8 @@ device cannot hold a scrape open. Serve stale readings as they are and
 publish their age beside them; a device never polled gets its inventory
 and schedule facts and no state, rather than zeroes. Publish no user
 names, passwords, key material or tokens — session counts, not who holds
-them. Give it an off switch in the configuration, since it is
+them — and publish `locked`, never `secure_locked`. Give it an off
+switch in the configuration, since it is
 unauthenticated.
 
 Send `Cache-Control: no-store` on API responses and a strict
@@ -370,19 +436,27 @@ Content-Security-Policy — `default-src 'none'`, `script-src 'self'`,
 and `Referrer-Policy`. Guard static file serving against directory escape.
 Never return the stored device password; report only whether one is set.
 
-## 10. The interface
+## 11. The interface
 
 A **React** application, sources under `frontend/src`, bundled with esbuild
 into `kasapanel/static/bundle.js`. Commit the bundle so installing needs
 Python only. No inline script or style anywhere, because the CSP forbids it.
 
 Five tabs: **Panel** (a card per device with a two-position rocker switch,
-sliders where the device supports them, live readings), **Schedules** (three
+sliders where the device supports them, live readings, and a lock emoji
+to the right of the name in the card title when the device is locked),
+**Schedules** (three
 columns: the device list; a text editor per device with its save controls
 and problems listed by line number, and the language reference beneath it
 so it can be read while typing; and the next five firings previewed in a
 narrow right-hand column, where a long command wraps under its time), **Devices** (scan, add by address, rename, disable,
-remove), **Activity**, and **Settings**.
+remove, and a **lock checkbox per device, to the left of that device's
+buttons**), **Activity**, and **Settings**.
+
+One modal plate serves every confirmation a locked device asks for, with
+**Yes** and **No** and nothing else until the daemon asks for a
+password, at which point the same plate grows a password field and
+focuses it.
 
 Give it a considered visual identity rather than a default one. The
 reference implementation is an enamelled electrical control cabinet: a
@@ -434,15 +508,20 @@ issuer, whether it is self-signed, validity dates, fingerprint — with a
 **live countdown to expiry** that ticks by the second in the last two
 days and by the minute otherwise, and turns red once inside 48 hours.
 
-## 11. Testing
+## 12. Testing
 
 Python: unit tests for the cron parser and its edge cases, the schedule
 language, the snooze syntax (every menu preset, spans, timestamps, the
 past, nonsense, the ceiling) and the scheduler skipping a snoozed device
 and tidying up after it, atomic storage, config coercion, the device
 store, the API (routing, both session carriers, CSRF, error mapping,
-snoozing), PAM diagnosis and
-sign-in policy, the log handler under rotation and deletion, and the
+snoozing, and every guarded request on a locked device — refused
+unconfirmed, allowed confirmed, refused again on a wrong password, with
+`secure_locked` in no payload and settable from no request), PAM
+diagnosis and sign-in policy, the empty password refusal on both sides
+of the helper protocol, the global rate limit (that it is global rather
+than per account, that a refusal does not take the slot, and that it is
+configurable), the log handler under rotation and deletion, and the
 certificate watcher — including a **live HTTPS server whose certificate is
 swapped underneath it while a connection is open**.
 
@@ -460,12 +539,17 @@ carrier exists for. Another must assert that a daemon running as
 the operator can still navigate away from it. Others must open the
 snooze menu and find every length, set and lift a snooze, drive the
 custom dialog through a refused value and an example to a set snooze,
-and find both versions beside the sign-out button.
+and find both versions beside the sign-out button. The lock needs its
+own: that a locked card wears the emoji, that a no sends nothing at all,
+that a yes sends the confirmation, that the checkbox asks before it lets
+go but not before it takes hold, and that a `secure_locked` device asks
+for the password only after the first yes, refuses a wrong one and keeps
+the dialog open, then acts on the right one.
 
 Everything must pass, and pylint must stay above 9.5 across the package, the
 tests and the tools.
 
-## 12. Packaging and provenance
+## 13. Packaging and provenance
 
 `pyproject.toml` with a `kasapanel` console script and the static files as
 package data. A hardened systemd unit that runs in the foreground and lets
@@ -498,7 +582,7 @@ fingerprint check, PAM and the shadow group, the schedule language, the file
 layout, the settings, the API, the frontend build, and troubleshooting for
 both PAM failures and sign-in bounces.
 
-## 13. This file
+## 14. This file
 
 Finally, write **`AI.prompt.md`** at the top level of the project: the
 full text of a prompt that would generate the current version of Kasa
@@ -514,5 +598,7 @@ change this file with it: a prompt that no longer produces the project is
 worse than none, because it looks authoritative while being wrong. Record
 the decisions someone would otherwise have to rediscover — why there is no
 `@reboot`, why the session travels in a header as well as a cookie, why the
-certificate pair is proved in a throwaway context first — since those are
-the parts a fresh attempt gets wrong.
+certificate pair is proved in a throwaway context first, why the lock is
+enforced by the daemon and not by the dialog, why a refused password does
+not take the rate limited slot — since those are the parts a fresh
+attempt gets wrong.

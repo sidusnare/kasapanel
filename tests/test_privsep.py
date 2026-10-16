@@ -205,6 +205,16 @@ class HelperConversationTest(unittest.TestCase):
         self.assertTrue(helper.authenticate('ada', 'right', 'login'))
         self.assertFalse(helper.authenticate('ada', 'wrong', 'login'))
 
+    def test_an_empty_password_is_refused_without_pam(self):
+        """The one process that can engage PAM declines to, for this."""
+        client = self.serve({'': True})
+        # pylint: disable=protected-access
+        privsep._send(client, {'op': 'auth', 'username': 'ada',
+                               'password': '', 'service': 'login'})
+        answer = privsep._receive(client)
+        self.assertIn('password', str(answer.get('error', '')))
+        self.assertNotIn('accepted', answer)
+
     def test_an_unsupported_request_is_refused(self):
         """The helper does exactly one thing and no more."""
         client = self.serve({})
@@ -259,6 +269,17 @@ class HelperConversationTest(unittest.TestCase):
 class AuthenticatorDelegationTest(unittest.TestCase):
     """The policy stays with the daemon; only the check is delegated."""
 
+    def setUp(self):
+        """Turns the global PAM rate limit off for these cases.
+
+        They make several attempts in a row on purpose, which is what
+        the limit exists to stop; the limit has its own tests.
+        """
+        auth.PAM_RATE_LIMIT.set_interval(0)
+        self.addCleanup(auth.PAM_RATE_LIMIT.set_interval,
+                        auth.DEFAULT_PAM_RATE_LIMIT_SECONDS)
+        self.addCleanup(auth.PAM_RATE_LIMIT.reset)
+
     def test_the_verifier_is_used_instead_of_local_pam(self):
         """A configured verifier replaces the in-process PAM call."""
         seen = []
@@ -278,7 +299,8 @@ class AuthenticatorDelegationTest(unittest.TestCase):
             return True
 
         authenticator = auth.Authenticator(
-            config.PanelConfig(pam_service='kasapanel'), verifier=verify)
+            config.PanelConfig(pam_service='kasapanel',
+                               pam_rate_limit_seconds=0), verifier=verify)
         self.assertEqual(authenticator.authenticate('ada', 'secret'), 'ada')
         self.assertEqual(seen, [('ada', 'secret', 'kasapanel')])
 
@@ -286,14 +308,16 @@ class AuthenticatorDelegationTest(unittest.TestCase):
         """The allow list and the lockout are not delegated."""
         authenticator = auth.Authenticator(
             config.PanelConfig(allowed_users=['grace'],
-                               max_login_failures=2),
+                               max_login_failures=2,
+                               pam_rate_limit_seconds=0),
             verifier=lambda *args: True)
         with self.assertRaises(auth.AuthError) as caught:
             authenticator.authenticate('ada', 'secret')
         self.assertIn('not allowed', str(caught.exception))
 
         refusing = auth.Authenticator(
-            config.PanelConfig(max_login_failures=2),
+            config.PanelConfig(max_login_failures=2,
+                               pam_rate_limit_seconds=0),
             verifier=lambda *args: False)
         for _ in range(2):
             with self.assertRaises(auth.AuthError):

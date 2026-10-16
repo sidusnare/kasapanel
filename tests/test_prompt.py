@@ -83,6 +83,9 @@ class PromptFileTest(unittest.TestCase):
             'setfacl',             # access is asked, not inferred
             'never poll',          # metrics come from cache
             'no @reboot',          # removed on purpose
+            'not the lock',        # the daemon enforces it, not the dialog
+            'take the slot',       # a refusal must not consume the rate
+                                   # limit, or nobody could ever sign in
         )
         body = plain(read())
         for phrase in wanted:

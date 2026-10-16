@@ -487,9 +487,14 @@ def command_check(options: argparse.Namespace) -> int:
         entries, found = schedule_lib.parse_script(
             document.get('schedule', ''))
         status = 'off' if not document.get('schedule_enabled', True) else 'on'
+        locks = ''
+        if document.get('locked'):
+            locks = ', locked'
+            if document.get('secure_locked'):
+                locks = ', locked (password)'
         print(f'  {record.display_name} ({record.host}) '
               f'[{record.device_id}] schedule {status}, '
-              f'{len(entries)} rule(s)')
+              f'{len(entries)} rule(s){locks}')
         for problem in found:
             schedule_problems += 1
             print(f'    line {problem.line_number}: {problem.message}',

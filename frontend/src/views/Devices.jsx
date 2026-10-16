@@ -7,6 +7,7 @@
 
 import React, {useState} from 'react';
 import {api} from '../api.js';
+import ConfirmLock, {lockOutcome} from '../components/ConfirmLock.jsx';
 import {useToast} from '../components/Toasts.jsx';
 import {DASH, shortTime} from '../format.js';
 
@@ -16,6 +17,9 @@ export default function Devices({devices, onChanged}) {
   const [alias, setAlias] = useState('');
   const [found, setFound] = useState(null);
   const [busy, setBusy] = useState(false);
+  // The device being asked about, the question, and the request to send
+  // if the answer is yes.
+  const [ask, setAsk] = useState(null);
 
   async function add(target, name) {
     if (!target) {
@@ -75,6 +79,33 @@ export default function Devices({devices, onChanged}) {
     }
   }
 
+  async function setLock(device, locked, confirmation) {
+    try {
+      await api.patch(`/api/devices/${device.device_id}`,
+        {locked, ...(confirmation || {})});
+      onChanged();
+      return {done: true};
+    } catch (err) {
+      return lockOutcome(err);
+    }
+  }
+
+  // Locking a device needs no ceremony; unlocking one is exactly what
+  // the lock is there to slow down, so it asks first.
+  async function toggleLock(device) {
+    const run = (confirmation) => setLock(device, false, confirmation);
+    const question = `Unlock ${device.display_name}? Switching it, saving `
+      + 'its schedule and snoozing it will stop asking first.';
+    if (device.locked) {
+      setAsk({device, question, run});
+      return;
+    }
+    const outcome = await setLock(device, true);
+    if (!outcome.done) {
+      notify(outcome.error, true);
+    }
+  }
+
   async function remove(device) {
     if (!window.confirm(`Remove ${device.display_name} and its schedule?`)) {
       return;
@@ -100,7 +131,7 @@ export default function Devices({devices, onChanged}) {
                 <thead>
                   <tr>
                     <th>Name</th><th>Address</th><th>Added</th>
-                    <th>Rules</th><th />
+                    <th>Rules</th><th>Locked</th><th />
                   </tr>
                 </thead>
                 <tbody>
@@ -115,6 +146,15 @@ export default function Devices({devices, onChanged}) {
                       <td className="mono">{device.host}</td>
                       <td className="mono">{shortTime(device.added_at)}</td>
                       <td className="mono">{device.rule_count}</td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          className="lock-box"
+                          checked={Boolean(device.locked)}
+                          aria-label={`Lock ${device.display_name}`}
+                          onChange={() => toggleLock(device)}
+                        />
+                      </td>
                       <td>
                         <button type="button" className="quiet"
                           onClick={() => rename(device)}>Rename</button>
@@ -131,6 +171,17 @@ export default function Devices({devices, onChanged}) {
               </table>
             )}
         </div>
+        {ask
+          ? (
+            <ConfirmLock
+              title={`${ask.device.display_name} is locked`}
+              question={ask.question}
+              onConfirm={
+                (password) => ask.run({confirm: true, password})}
+              onClose={() => setAsk(null)}
+            />
+          )
+          : null}
       </div>
 
       <div className="column">

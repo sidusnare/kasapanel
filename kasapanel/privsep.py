@@ -892,6 +892,12 @@ def _serve_helper(sock: socket.socket) -> None:
             if alarms:
                 signal.alarm(HELPER_TIMEOUT_SECONDS)
             try:
+                # The daemon refuses an empty password before it asks,
+                # and so does the helper: this is the one process that
+                # can engage PAM, so the rule belongs here too rather
+                # than only on the side that happens to ask politely.
+                auth.refuse_empty_password(
+                    str(request.get('password', '')))
                 session = auth.new_authenticator()
                 answer = {'accepted': bool(session.authenticate(
                     str(request.get('username', '')),

@@ -24,6 +24,10 @@ const FIELDS = [
   ['tls_certificate', 'TLS certificate', 'Leave blank for the self-signed pair.'],
   ['tls_key', 'TLS key', ''],
   ['pam_service', 'PAM service', 'A file name from /etc/pam.d.'],
+  ['pam_rate_limit_seconds', 'seconds between PAM checks',
+    'The shortest gap between two password checks anywhere in the '
+    + 'daemon, sign-ins and lock confirmations alike. 0 turns the limit '
+    + 'off.'],
   ['allowed_users', 'allowed users', 'Comma separated; empty means anyone PAM accepts.'],
   ['allowed_groups', 'allowed groups', 'Comma separated.'],
   ['session_minutes', 'session idle minutes', ''],
@@ -49,6 +53,14 @@ function controlFor(name, value, current, onChange) {
   if (name === 'device_password') {
     return (
       <input type="password" value={current} placeholder="unchanged"
+        onChange={(event) => onChange(event.target.value)} />
+    );
+  }
+  // The one setting measured in fractions of a second: a number input
+  // left at its default step would refuse 0.5.
+  if (name === 'pam_rate_limit_seconds') {
+    return (
+      <input type="number" min="0" step="0.1" value={current}
         onChange={(event) => onChange(event.target.value)} />
     );
   }

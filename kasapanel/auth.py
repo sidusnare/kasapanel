@@ -12,7 +12,13 @@ rules are applied on top:
 
 * the account must appear in ``allowed_users`` or belong to one of the
   ``allowed_groups``, unless both lists are empty;
-* repeated failures lock an account out for a while.
+* repeated failures lock an account out for a while;
+* PAM is engaged at most once a second across the whole daemon, and an
+  empty password is refused before PAM is engaged at all.
+
+The same check answers a second question: a device marked ``locked`` can
+be set to ask for the password again before it will act, which
+:meth:`Authenticator.confirm` handles.
 
 Sessions are held in memory only.  Restarting the daemon signs everyone
 out, which is the behaviour an operator expects from a daemon that
@@ -33,9 +39,12 @@ import pwd
 import secrets
 import sys
 import threading
+import time
 from typing import Any, Dict, List, Optional
 
 _LOG = logging.getLogger(__name__)
+
+DEFAULT_PAM_RATE_LIMIT_SECONDS = 1.0
 
 def _import_pam():
     """Imports python-pam without letting a broken install stop us.
@@ -156,6 +165,100 @@ def new_authenticator() -> Any:
             'the daemon PATH.') from error
 
 
+def refuse_empty_password(password: str) -> None:
+    """Refuses an empty password before PAM is engaged at all.
+
+    This is not politeness about a blank field.  PAM is configuration,
+    and ``pam_unix`` with ``nullok`` accepts an empty password for an
+    account that has none -- a locked system account with ``*`` in the
+    shadow file is a different matter, but the daemon cannot tell the
+    two apart from here.  A conversation module can also sit waiting on
+    input that will never come.  Neither is worth finding out: an empty
+    password is not a credential, so it never reaches PAM.
+
+    Args:
+        password: The password as typed.
+
+    Raises:
+        AuthError: If the password is empty.
+    """
+    if not password:
+        raise AuthError('enter a password')
+
+
+class RateLimit:
+    """A global limit on how often PAM may be engaged.
+
+    PAM is the expensive, privileged and guessable part of signing in,
+    so the daemon allows one check per second across every session,
+    account and connection rather than one per account: a limit that
+    counts per account is no limit at all to somebody working through a
+    list of names.
+
+    Only a check that actually reaches PAM takes the slot.  A refusal
+    does not, or a caller hammering the daemon would hold the slot
+    permanently and nobody could ever sign in.
+    """
+
+    def __init__(self, interval: float = DEFAULT_PAM_RATE_LIMIT_SECONDS):
+        """Initialises the limiter.
+
+        Args:
+            interval: Shortest gap between checks, in seconds.
+        """
+        self._lock = threading.Lock()
+        self._interval = float(interval)
+        self._last = 0.0
+
+    def set_interval(self, interval: float) -> None:
+        """Changes the gap between checks.
+
+        Args:
+            interval: Shortest gap in seconds; 0 or less turns the
+                limit off.
+        """
+        with self._lock:
+            self._interval = max(float(interval), 0.0)
+
+    @property
+    def interval(self) -> float:
+        """Returns the gap between checks, in seconds."""
+        with self._lock:
+            return self._interval
+
+    def take(self, now: Optional[float] = None) -> None:
+        """Claims the right to engage PAM once.
+
+        Args:
+            now: The monotonic reading to judge by; defaults to the
+                clock.  Tests pass one so they need not sleep.
+
+        Raises:
+            AuthError: If PAM was engaged too recently.
+        """
+        moment = time.monotonic() if now is None else now
+        with self._lock:
+            if self._interval <= 0:
+                return
+            waited = moment - self._last
+            if self._last and waited < self._interval:
+                left = self._interval - waited
+                raise AuthError(
+                    'too many sign in attempts at once; try again in '
+                    f'{left:.1f} seconds')
+            self._last = moment
+
+    def reset(self) -> None:
+        """Forgets the last check.  For tests and for a fresh start."""
+        with self._lock:
+            self._last = 0.0
+
+
+# One limiter for the whole process, so the rate is global rather than
+# per authenticator, per account or per connection.
+PAM_RATE_LIMIT = RateLimit()
+
+
 @dataclasses.dataclass
 class Session:
     """One signed in browser session.
@@ -234,6 +337,9 @@ class Authenticator:
         self._lock = threading.Lock()
         self._failures: Dict[str, int] = {}
         self._locked_until: Dict[str, datetime.datetime] = {}
+        PAM_RATE_LIMIT.set_interval(
+            getattr(settings, 'pam_rate_limit_seconds',
+                    DEFAULT_PAM_RATE_LIMIT_SECONDS))
 
     def use_verifier(self, verifier: Any) -> None:
         """Sends password checks to a helper instead of to local PAM.
@@ -250,6 +356,9 @@ class Authenticator:
             settings: A :class:`kasapanel.config.PanelConfig` instance.
         """
         self._settings = settings
+        PAM_RATE_LIMIT.set_interval(
+            getattr(settings, 'pam_rate_limit_seconds',
+                    DEFAULT_PAM_RATE_LIMIT_SECONDS))
 
     def _is_allowed(self, username: str) -> bool:
         """Applies the allowed users and groups policy.
@@ -321,7 +430,7 @@ class Authenticator:
             self._failures.pop(username, None)
             self._locked_until.pop(username, None)
 
-    def authenticate(self, username: str, password: str) -> str:
+    def _verify(self, username: str, password: str) -> str:
         """Checks a username and password against PAM.
 
         Args:
@@ -333,14 +442,20 @@ class Authenticator:
 
         Raises:
             AuthError: If PAM is unavailable, the credentials are wrong,
-                the account is not allowed, or it is locked out.
+                the account is not allowed, it is locked out, or PAM has
+                been engaged too recently.
         """
         username = (username or '').strip()
-        if not username or not password:
+        if not username:
             raise AuthError('enter a username and a password')
+        # Before anything else, and before the rate limit: an empty
+        # password is not a credential, and refusing one must not cost
+        # the next caller their turn.
+        refuse_empty_password(password)
         if self._verifier is None and not PAM_AVAILABLE:
             raise AuthError(pam_reason())
         self._check_lockout(username)
+        PAM_RATE_LIMIT.take()
         service = getattr(self._settings, 'pam_service', 'login')
         session = None
         try:
@@ -371,8 +486,49 @@ class Authenticator:
             self._record_failure(username)
             raise AuthError('that account is not allowed to use this panel')
         self._record_success(username)
-        _LOG.info('signed in %s', username)
         return username
+
+    def authenticate(self, username: str, password: str) -> str:
+        """Signs a user in.
+
+        Args:
+            username: Account name.
+            password: The password as typed.
+
+        Returns:
+            The account name, normalised.
+
+        Raises:
+            AuthError: If the sign in is refused, for any of the reasons
+                :meth:`_verify` gives.
+        """
+        name = self._verify(username, password)
+        _LOG.info('signed in %s', name)
+        return name
+
+    def confirm(self, username: str, password: str) -> str:
+        """Re-checks the password of somebody already signed in.
+
+        A locked device can be told to ask for the password again before
+        it will do anything, which is only worth asking for if the
+        answer is checked the same way a sign in is: the same PAM
+        service, the same lockout counters, the same global rate limit.
+        The session is not enough on its own -- an unattended browser is
+        exactly what this guards against.
+
+        Args:
+            username: The account the session belongs to.
+            password: The password as typed into the dialog.
+
+        Returns:
+            The account name, normalised.
+
+        Raises:
+            AuthError: If the password is wrong or cannot be checked.
+        """
+        name = self._verify(username, password)
+        _LOG.info('%s confirmed a guarded action', name)
+        return name
 
 
 class SessionManager:

@@ -316,6 +316,10 @@ def _device_metrics(writer: Writer, app: Any, now: float) -> None:
         writer.add('device_schedule_enabled',
                    bool(document.get('schedule_enabled', True)), 'gauge',
                    'Whether this device runs its schedule.', labels)
+        writer.add('device_locked', bool(document.get('locked', False)),
+                   'gauge',
+                   'Whether this device asks to be confirmed before it '
+                   'is switched or rescheduled.', labels)
         writer.add('device_schedule_rules', len(entries), 'gauge',
                    'Rules in this device schedule.', labels)
         writer.add('device_schedule_problems', len(problems), 'gauge',

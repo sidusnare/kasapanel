@@ -7,6 +7,7 @@
     "tls_certificate": "",
     "tls_key": "",
     "pam_service": "login",
+    "pam_rate_limit_seconds": 1.0,
     "allowed_users": [],
     "allowed_groups": [],
     "session_minutes": 720,
