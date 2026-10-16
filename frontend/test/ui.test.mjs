@@ -195,6 +195,50 @@ describe('the panel', () => {
     assert.deepEqual(app.errors, []);
   });
 
+  it('shows the host clock to the second, with its zone', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    const readout = findByText(app.document, '.readout', 'Host clock');
+    assert.match(text(readout), /14:58:0\d JST/,
+      'the host clock should carry seconds and the daemon zone');
+  });
+
+  // The daemon in the fixtures keeps Tokyo time, so unless this machine
+  // does too, the viewer is told what that instant is where they are.
+  it('adds the browser clock when the zones differ', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    const readout = findByText(app.document, '.readout', 'Host clock');
+    const here = readout.querySelector('.clock-here');
+    const instant = new Date('2026-07-29T14:58:05+09:00');
+    if (-instant.getTimezoneOffset() === 540) {
+      assert.equal(here, null, 'the same zone needs no aside');
+      return;
+    }
+    assert.ok(here, 'a browser in another zone should be told so');
+    const shown = text(here);
+    assert.match(shown, /^\(\d{2}:\d{2}:\d{2} .+\)$/,
+      'the aside is a time and a zone in parentheses');
+    const expected = new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hourCycle: 'h23', timeZoneName: 'short',
+    }).format(instant);
+    assert.equal(shown, `(${expected})`,
+      'the aside should be the same instant, read here');
+  });
+
+  it('leaves the browser clock out when the zones agree', async () => {
+    const app = await mount({hostZone: 'local'});
+    after(() => app.close());
+    await signIn(app);
+    const readout = findByText(app.document, '.readout', 'Host clock');
+    assert.equal(readout.querySelector('.clock-here'), null,
+      'repeating the same reading twice tells nobody anything');
+    assert.match(text(readout), /14:58:0\d/);
+  });
+
   it('fills the readouts from the dashboard', async () => {
     const app = await mount();
     after(() => app.close());

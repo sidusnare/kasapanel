@@ -72,6 +72,29 @@ def configure_logging(settings: config_lib.PanelConfig) -> None:
     root.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
 
 
+def host_clock(now: Optional[datetime.datetime] = None) -> Dict[str, str]:
+    """Reports the daemon host's clock, to the second, with its zone.
+
+    The time itself stays in the naive local form every other timestamp
+    the daemon sends uses; the zone travels beside it, so a browser in
+    another zone can say so without having to guess where the daemon is.
+
+    Args:
+        now: The moment to report; defaults to the clock.
+
+    Returns:
+        The time, the zone abbreviation and the UTC offset as ``+HH:MM``.
+    """
+    moment = (now or datetime.datetime.now()).astimezone()
+    offset = moment.strftime('%z')
+    return {
+        'server_time': moment.replace(tzinfo=None).isoformat(
+            timespec='seconds'),
+        'server_timezone': moment.strftime('%Z'),
+        'server_utc_offset': f'{offset[:3]}:{offset[3:]}' if offset else '',
+    }
+
+
 def versions() -> Dict[str, str]:
     """Reports the versions of Kasa Panel and python-kasa in use.
 
@@ -456,8 +479,7 @@ class Application:
                 'on': switched_on,
                 'power_watts': round(power, 2),
                 'started_at': self.started_at.isoformat(timespec='seconds'),
-                'server_time': datetime.datetime.now().isoformat(
-                    timespec='seconds'),
+                **host_clock(),
             },
             'scheduler': scheduler_state,
             'kasa_available': kasabridge.KASA_AVAILABLE,

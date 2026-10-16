@@ -207,6 +207,15 @@ main { min-width: 0; padding: 0 0 40px; }
   font-variant-numeric: tabular-nums;
 }
 
+/* The browser's own reading, when it differs from the daemon's: a
+   quieter aside beside the host clock, never a rival to it. */
+.clock-here {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
 .readout.right { margin-left: auto; }
 
 .view { padding: 22px 26px; }

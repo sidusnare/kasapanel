@@ -6,8 +6,10 @@
 # see docs/ai-bom.spdx.json for the AI usage declaration.
 """Tests for :mod:`kasapanel.api` using a stand-in device bridge."""
 
+import datetime
 import os
 import tempfile
+import time
 import unittest
 from typing import Any, Dict, List
 from unittest import mock
@@ -402,6 +404,27 @@ class ApiTest(unittest.TestCase):
         self.assertIn('soon', bad.payload['error'])
         self.assertNotIn('snoozed_until',
                          self.app.devices.device_document(device_id))
+
+    def test_dashboard_reports_the_host_clock_with_its_zone(self):
+        """The clock reads to the second and says which zone it is in."""
+        summary = self.request('GET', '/api/dashboard').payload['summary']
+        self.assertRegex(summary['server_time'],
+                         r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$')
+        self.assertRegex(summary['server_utc_offset'], r'^[+-]\d\d:\d\d$')
+        self.assertTrue(summary['server_timezone'])
+
+    def test_the_host_clock_stays_in_local_time(self):
+        """The time is the host's own reading; the zone travels beside it."""
+        moment = datetime.datetime(2026, 9, 21, 22, 15, 10)
+        with mock.patch.dict(os.environ, {'TZ': 'Asia/Tokyo'}):
+            time.tzset()
+            self.addCleanup(time.tzset)
+            clock = app_lib.host_clock(moment)
+        self.assertEqual(clock, {
+            'server_time': '2026-09-21T22:15:10',
+            'server_timezone': 'JST',
+            'server_utc_offset': '+09:00',
+        })
 
     def test_dashboard_reports_versions(self):
         """The footer shows which Kasa Panel and python-kasa are running."""

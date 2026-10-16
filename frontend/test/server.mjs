@@ -21,7 +21,23 @@ export function fixture(name) {
     fs.readFileSync(path.join(here, 'fixtures', `${name}.json`), 'utf8'));
 }
 
-export function createServer({acceptCookie = true, lastResort = false} = {}) {
+// The daemon's own zone, or the one this machine keeps, so a test can
+// mount a panel whose browser agrees with the daemon about the clock.
+function localZone() {
+  const minutes = -new Date().getTimezoneOffset();
+  const pad = (value) => String(Math.abs(value)).padStart(2, '0');
+  const parts = new Intl.DateTimeFormat(undefined, {timeZoneName: 'short'})
+    .formatToParts(new Date());
+  return {
+    server_utc_offset: `${minutes < 0 ? '-' : '+'}`
+      + `${pad(Math.trunc(minutes / 60))}:${pad(minutes % 60)}`,
+    server_timezone: (parts.find((part) => part.type === 'timeZoneName')
+      || {}).value || 'local',
+  };
+}
+
+export function createServer({acceptCookie = true, lastResort = false,
+  hostZone = ''} = {}) {
   const calls = [];
   let signedIn = false;
   const token = 'session-token-xyz';
@@ -89,7 +105,11 @@ export function createServer({acceptCookie = true, lastResort = false} = {}) {
       : {name: 'kasapanel', uid: 992, gid: 992, last_resort: false,
         warning: '', privileged_helper: true};
     if (pathname === '/api/dashboard') {
-      return reply(200, {...fixture('dashboard'), devices,
+      const payload = fixture('dashboard');
+      const summary = hostZone === 'local'
+        ? {...payload.summary, ...localZone()}
+        : payload.summary;
+      return reply(200, {...payload, summary, devices,
         daemon_user: account});
     }
     if (pathname === '/api/reference') {
@@ -136,7 +156,8 @@ export function createServer({acceptCookie = true, lastResort = false} = {}) {
       if (method === 'DELETE') {
         const next = {...device, snoozed_until: ''};
         devices[devices.indexOf(device)] = next;
-        return reply(200, {device: next, lifted: Boolean(device.snoozed_until)});
+        return reply(200,
+          {device: next, lifted: Boolean(device.snoozed_until)});
       }
       if (!/^\d/.test(body.for) && !body.for.startsWith('tomorrow')) {
         return reply(400, {error: `"${body.for}" is not a time span or a `

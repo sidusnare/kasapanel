@@ -32,6 +32,11 @@ Built on [python-kasa](https://python-kasa.readthedocs.io/).
 Multiple people can be signed in at once; the server is threaded and the
 device layer is shared and lock-guarded.
 
+The readouts across the top end with the host clock, to the second and in
+the daemon's own time zone. If your browser keeps a different zone, the
+same instant as you see it follows in parentheses, so a schedule written
+in host time is never read in the wrong one by mistake.
+
 The foot of the side rail shows the Kasa Panel and python-kasa versions
 beside the sign-out button, which is the first thing to quote in a bug
 report.

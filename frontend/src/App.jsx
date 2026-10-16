@@ -9,7 +9,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ApiError, api, clearCredentials, setCredentials} from './api.js';
 import SignIn from './SignIn.jsx';
 import {useToast} from './components/Toasts.jsx';
-import {DASH, clockTime, watts} from './format.js';
+import {DASH, browserClock, hostClock, hostInstant, watts} from './format.js';
 import Activity from './views/Activity.jsx';
 import Devices from './views/Devices.jsx';
 import Panel from './views/Panel.jsx';
@@ -25,6 +25,40 @@ const TABS = [
   ['activity', 'Activity'],
   ['settings', 'Settings'],
 ];
+
+// The host clock ticks by the second between dashboard polls, which
+// arrive every five: a clock that shows seconds but jumps five at a time
+// reads as a broken clock.  Each poll resets the reckoning, so the
+// panel never drifts away from the daemon's own reading.
+function HostClock({summary}) {
+  const base = hostInstant(summary);
+  const stamp = base ? base.getTime() : 0;
+  const [drift, setDrift] = useState(0);
+  const received = useRef(Date.now());
+
+  useEffect(() => {
+    received.current = Date.now();
+    setDrift(0);
+    if (!stamp) {
+      return undefined;
+    }
+    const timer = window.setInterval(
+      () => setDrift(Date.now() - received.current), 1000);
+    return () => window.clearInterval(timer);
+  }, [stamp]);
+
+  if (!stamp) {
+    return <b className="mono">{hostClock(summary)}</b>;
+  }
+  const now = new Date(stamp + drift);
+  const here = browserClock(summary, now);
+  return (
+    <b className="mono">
+      {hostClock(summary, now)}
+      {here ? <small className="clock-here"> ({here})</small> : null}
+    </b>
+  );
+}
 
 function Readouts({dashboard}) {
   const summary = (dashboard && dashboard.summary) || {};
@@ -53,7 +87,7 @@ function Readouts({dashboard}) {
       </div>
       <div className="readout">
         <span className="engraved">Host clock</span>
-        <b className="mono">{clockTime(summary.server_time)}</b>
+        <HostClock summary={summary} />
       </div>
     </header>
   );

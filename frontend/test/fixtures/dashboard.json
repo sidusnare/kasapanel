@@ -38,7 +38,9 @@
         "on": 0,
         "power_watts": 0.0,
         "started_at": "2026-07-29T14:58:02",
-        "server_time": "2026-07-29T14:58:05"
+        "server_time": "2026-07-29T14:58:05",
+        "server_timezone": "JST",
+        "server_utc_offset": "+09:00"
     },
     "scheduler": {
         "enabled": true,

@@ -412,6 +412,18 @@ The foot of the side rail shows the **Kasa Panel and python-kasa
 versions** beside the **Sign out** button, taken from the dashboard
 payload; python-kasa's comes from its distribution metadata.
 
+The readouts along the top end with the **host clock**, shown **to the
+second and with the daemon's time zone**. It ticks once a second between
+polls and resets its reckoning on each one, because a clock that shows
+seconds but jumps five at a time reads as a broken clock. When the
+browser keeps a different zone from the daemon, **the same instant as the
+viewer sees it follows in parentheses, smaller and quieter**: the time and
+that zone's abbreviation. When the two agree there is no aside, since
+printing one reading twice tells nobody anything. The daemon sends its
+clock as the naive local time every other timestamp uses, with the zone
+name and UTC offset beside it, rather than moving to an offset format
+its other fields do not use.
+
 Poll the dashboard every five seconds, and not at all while the tab is
 hidden.
 
