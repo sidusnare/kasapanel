@@ -86,6 +86,7 @@ class PromptFileTest(unittest.TestCase):
             'not the lock',        # the daemon enforces it, not the dialog
             'take the slot',       # a refusal must not consume the rate
                                    # limit, or nobody could ever sign in
+            'seating plan',        # the card order is not a device list
         )
         body = plain(read())
         for phrase in wanted:

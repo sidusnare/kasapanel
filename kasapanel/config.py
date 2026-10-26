@@ -61,7 +61,8 @@ class PanelConfig:
 
     Attributes:
         version: Schema version of the configuration file.
-        state_dir: Directory holding devices.json and device files.
+        state_dir: Directory holding devices.json, the device files
+            and the per-user preference files.
         listen_host: Address the HTTPS server binds to.
         listen_port: TCP port the HTTPS server binds to.
         tls_certificate: PEM certificate served to browsers.
@@ -125,6 +126,11 @@ class PanelConfig:
     def device_dir(self) -> str:
         """Returns the directory holding per-device JSON files."""
         return os.path.join(self.state_dir, 'devices')
+
+    @property
+    def user_dir(self) -> str:
+        """Returns the directory holding per-user preference files."""
+        return os.path.join(self.state_dir, 'users')
 
     @property
     def tls_dir(self) -> str:
@@ -297,6 +303,7 @@ class ConfigStore:
             self.save(self._config)
         jsonstore.ensure_directory(self._config.state_dir)
         jsonstore.ensure_directory(self._config.device_dir)
+        jsonstore.ensure_directory(self._config.user_dir)
         jsonstore.ensure_directory(self._config.tls_dir)
         return self._config
 

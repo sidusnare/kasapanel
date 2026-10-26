@@ -36,6 +36,7 @@ from kasapanel import kasabridge
 from kasapanel import logsink
 from kasapanel import schedule as schedule_lib
 from kasapanel import snooze as snooze_lib
+from kasapanel import userstore
 
 _LOG = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ class Application:
         self.activity = activity_lib.ActivityLog()
         self.devices = devicestore.DeviceStore(
             self.settings.devices_file, self.settings.device_dir)
+        self.users = userstore.UserStore(self.settings.user_dir)
         self.worker = kasabridge.AsyncWorker()
         self.bridge = kasabridge.DeviceBridge(self.worker, self.settings)
         self.authenticator = auth.Authenticator(self.settings)
@@ -152,6 +154,7 @@ class Application:
         self.devices = devicestore.DeviceStore(
             self.settings.devices_file, self.settings.device_dir)
         self.devices.load()
+        self.users = userstore.UserStore(self.settings.user_dir)
         self.activity.resize(self.settings.history_limit)
         self.bridge.update_settings(self.settings)
         self.authenticator.update_settings(self.settings)
@@ -443,6 +446,43 @@ class Application:
             f'{verb} {record.display_name}', source=actor,
             device_id=device_id, device_name=record.display_name)
         return bool(locked)
+
+    def preferences(self, username: str) -> Dict[str, Any]:
+        """Returns one operator's own settings.
+
+        Args:
+            username: The account the session belongs to.
+
+        Returns:
+            The theme and the card order, with the defaults filled in.
+
+        Raises:
+            userstore.UserError: If the name is not an account name.
+        """
+        return self.users.preferences(username)
+
+    def set_preferences(self, username: str,
+                        changes: Dict[str, Any]) -> Dict[str, Any]:
+        """Saves part of one operator's own settings.
+
+        Preferences are not written to the activity log.  The log is a
+        record of what happened to the devices, and somebody choosing
+        the dark theme is not one of those things.
+
+        Args:
+            username: The account the session belongs to.
+            changes: Field names mapped to new values.
+
+        Returns:
+            The settings now in force for that operator.
+
+        Raises:
+            userstore.UserError: If the name is not an account name.
+            jsonstore.StoreError: If the file cannot be written.
+        """
+        document = self.users.update(username, changes)
+        _LOG.debug('preferences saved for %s', username)
+        return document
 
     def device_view(self, record: devicestore.DeviceRecord) -> Dict[str, Any]:
         """Builds the dashboard view of one device.

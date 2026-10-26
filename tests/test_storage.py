@@ -137,8 +137,17 @@ class ConfigTest(unittest.TestCase):
         settings = store.config
         self.assertTrue(settings.devices_file.endswith('devices.json'))
         self.assertTrue(settings.device_dir.endswith('devices'))
+        self.assertTrue(settings.user_dir.endswith('users'))
         self.assertTrue(
             settings.resolved_certificate().endswith('panel.crt'))
+
+    def test_loading_makes_the_directories_it_will_write_to(self):
+        """Including the one holding the per-user preference files."""
+        store = self._store()
+        settings = store.load()
+        for directory in (settings.state_dir, settings.device_dir,
+                          settings.user_dir, settings.tls_dir):
+            self.assertTrue(os.path.isdir(directory), directory)
 
 
 class DeviceStoreTest(unittest.TestCase):

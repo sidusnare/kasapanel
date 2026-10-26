@@ -42,9 +42,12 @@ you have not executed.
 7. **Per-device locks**: a device can be marked so the panel confirms
    before it changes it, with a stronger form, set only by editing the
    device's file, that also demands the operator's password.
-8. Follow the **Google Python Style Guide**.
-9. Score **above 9.5 with pylint**, using Google's own `pylintrc`.
-10. Ship the **GPL-3 licence**, **SPDX file headers**, an **SPDX SBOM**,
+8. **Per-user preferences**: each operator's own order for the device
+   cards, which they set by dragging them, and their own choice of the
+   light or the dark theme, kept in a file of their own.
+9. Follow the **Google Python Style Guide**.
+10. Score **above 9.5 with pylint**, using Google's own `pylintrc`.
+11. Ship the **GPL-3 licence**, **SPDX file headers**, an **SPDX SBOM**,
    and **SPDX AI headers** with an AI bill of materials.
 
 ## 2. Layout
@@ -54,6 +57,7 @@ kasapanel/            the Python package
   jsonstore.py        atomic JSON reads and writes
   config.py           daemon settings and their defaults
   devicestore.py      the inventory and per-device documents
+  userstore.py        per-user preferences: card order and theme
   cron.py             cron expression parsing, minute resolution
   actions.py          the device action vocabulary
   schedule.py         the per-device schedule language
@@ -87,9 +91,11 @@ Write JSON atomically: temporary file, `flush`, `fsync`, `os.replace`. Files
 are mode `0600` and directories `0700`. A partially written file must never
 be able to destroy a schedule.
 
-Three kinds of file: `config.json`, an inventory at `devices.json`, and one
+Four kinds of file: `config.json`, an inventory at `devices.json`, one
 document per device under `devices/<device-id>.json` holding its schedule,
-its enabled flag, its two lock flags and its last known state.
+its enabled flag, its two lock flags and its last known state, and one
+document per operator under `users/<username>.json` holding what that
+person chose for themselves.
 
 Give each device a **random UUID** when it is added, and use it as the
 file name. Nothing a device or a person supplies — host, MAC, alias,
@@ -102,6 +108,24 @@ a DHCP lease change in the record instead: match on MAC, then host, and
 keep the identifier already held. An entry whose identifier is not a
 UUID is simply a bad entry — log it and skip it, the same as any other
 malformed one.
+
+The per-user file is the one place a name from outside reaches a path, and
+it is allowed because the name is not arbitrary: it arrived with a session,
+and a session exists only because PAM accepted that account. Check it all
+the same — a plain account name and nothing that could be read as a
+path — and refuse rather than scrub, exactly as for a device
+identifier. Take the account from the session and never from the request
+body, so one operator cannot read or write another's file.
+
+Treat preferences as a convenience and not a record. A file that cannot be
+read loses somebody's card order, which is not a reason to refuse them the
+panel: log it, fall back to the defaults, and carry on. Drop a value that
+makes no sense — a theme nobody styled, an entry in the card order
+that is not a device identifier — rather than storing it, because that
+file is read straight back into a payload the browser trusts. Do not write
+a file that would only hold the defaults, and do not put a preference in
+the activity log: that log records what happened to the devices, and
+somebody choosing the dark theme is not one of those things.
 
 Running as root, default to `/etc/kasapanel/config.json` and
 `/var/lib/kasapanel`; otherwise use the XDG directories, so the daemon can
@@ -410,7 +434,8 @@ Endpoints for session, dashboard, devices (list, add, patch, delete),
 per-device action and refresh, per-device schedule (get, put), per-device
 snooze (`POST` with `{for}` in systemd.time syntax, `DELETE` to resume), a
 schedule check that validates without saving, a snooze check that resolves
-a time without setting it, scan, settings, activity, sessions, a
+a time without setting it, scan, settings, per-user preferences (get, put,
+always for whoever holds the session), activity, sessions, a
 reference describing the language, and an unauthenticated `/healthz`.
 
 Map domain exceptions to status codes: unknown device 404, bad schedule or
@@ -443,8 +468,9 @@ into `kasapanel/static/bundle.js`. Commit the bundle so installing needs
 Python only. No inline script or style anywhere, because the CSP forbids it.
 
 Five tabs: **Panel** (a card per device with a two-position rocker switch,
-sliders where the device supports them, live readings, and a lock emoji
-to the right of the name in the card title when the device is locked),
+sliders where the device supports them, live readings, a lock emoji
+to the right of the name in the card title when the device is locked, and
+**cards the operator can rearrange by dragging them by the header**),
 **Schedules** (three
 columns: the device list; a text editor per device with its save controls
 and problems listed by line number, and the language reference beneath it
@@ -498,6 +524,35 @@ clock as the naive local time every other timestamp uses, with the zone
 name and UTC offset beside it, rather than moving to an offset format
 its other fields do not use.
 
+The **card header is the handle**: take hold of it and drop the card on
+another to put it where that one stood, left or right. Show which card is
+in the hand and which one it would displace. The header carries a grip,
+which is a real button so the **arrow keys move a card too** — a
+rearrangement that needs a mouse is one half the operators cannot do at
+all — and the rocker inside the header is not draggable, because a
+hand on the switch is there to throw it. Keep the card being moved and the
+card under the pointer as identifiers rather than positions: a poll can
+rebuild the list mid-drag, and a position would then mean a different card.
+
+Save the order per operator and treat it as a **seating plan rather than a
+copy of the inventory**: a device the plan names takes its place, a device
+it has never seen goes at the end where a new one is noticed, and a name
+with no device is left in the plan in case that device comes back. Apply a
+rearrangement before it is saved, because dragging a card should feel like
+moving a card and not like filing a request.
+
+Offer a **light and a dark theme**, with the switch for it **immediately to
+the right of the host clock** and last on the readout strip. Define every
+colour as a variable in two blocks — the light set and a dark set
+under `:root[data-theme="dark"]` — and let no other rule name a
+colour, so the dark theme is the same cabinet at night rather than a second
+cabinet to keep in step. The theme is **chosen, not guessed**: it comes
+from that operator's own file, so a shared machine shows each person what
+they asked for instead of what the last visitor's desktop preferred. Write
+the answer to the root element, and keep the last theme this browser saw
+locally as well, or every load of a dark panel starts with a flash of the
+light one.
+
 Poll the dashboard every five seconds, and not at all while the tab is
 hidden.
 
@@ -517,7 +572,9 @@ and tidying up after it, atomic storage, config coercion, the device
 store, the API (routing, both session carriers, CSRF, error mapping,
 snoozing, and every guarded request on a locked device — refused
 unconfirmed, allowed confirmed, refused again on a wrong password, with
-`secure_locked` in no payload and settable from no request), PAM
+`secure_locked` in no payload and settable from no request), the per-user preference store (an account name
+and nothing that could be read as a path, nonsense corrected on the way
+out, one operator unable to reach another's), PAM
 diagnosis and sign-in policy, the empty password refusal on both sides
 of the helper protocol, the global rate limit (that it is global rather
 than per account, that a refusal does not take the slot, and that it is
@@ -544,7 +601,12 @@ own: that a locked card wears the emoji, that a no sends nothing at all,
 that a yes sends the confirmation, that the checkbox asks before it lets
 go but not before it takes hold, and that a `secure_locked` device asks
 for the password only after the first yes, refuses a wrong one and keeps
-the dialog open, then acts on the right one.
+the dialog open, then acts on the right one. The panel's own choices need
+theirs: that the theme switch sits last on the readout strip and dresses
+the shell, that the panel opens the way the file says, that a dragged card
+lands where it was dropped and the new order is sent, that the arrow keys
+do the same, that a card dropped on itself saves nothing, and that a device
+the saved order has never seen appears at the end.
 
 Everything must pass, and pylint must stay above 9.5 across the package, the
 tests and the tools.
@@ -600,5 +662,6 @@ the decisions someone would otherwise have to rediscover — why there is no
 `@reboot`, why the session travels in a header as well as a cookie, why the
 certificate pair is proved in a throwaway context first, why the lock is
 enforced by the daemon and not by the dialog, why a refused password does
-not take the rate limited slot — since those are the parts a fresh
+not take the rate limited slot, why the card order is a seating plan and
+not a copy of the inventory — since those are the parts a fresh
 attempt gets wrong.

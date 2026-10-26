@@ -10,6 +10,8 @@ import {ApiError, api, clearCredentials, setCredentials} from './api.js';
 import SignIn from './SignIn.jsx';
 import {useToast} from './components/Toasts.jsx';
 import {DASH, browserClock, hostClock, hostInstant, watts} from './format.js';
+import {applyTheme, cleanTheme, rememberTheme, rememberedTheme}
+  from './theme.js';
 import Activity from './views/Activity.jsx';
 import Devices from './views/Devices.jsx';
 import Panel from './views/Panel.jsx';
@@ -60,7 +62,34 @@ function HostClock({summary}) {
   );
 }
 
-function Readouts({dashboard}) {
+// The one control in the readout strip, and the only thing to the right
+// of the host clock.  It is a two-position switch like the rockers on
+// the cards, so it says which way it is set with aria-pressed rather
+// than with the word in its label.
+function ThemeToggle({theme, onTheme}) {
+  const dark = theme === 'dark';
+  return (
+    <div className="readout">
+      <span className="engraved">Theme</span>
+      <button
+        type="button"
+        className="theme-toggle"
+        aria-pressed={dark}
+        aria-label="Dark mode"
+        title={dark ? 'Switch to the light theme'
+          : 'Switch to the dark theme'}
+        onClick={() => onTheme(dark ? 'light' : 'dark')}
+      >
+        <span className="theme-mark" aria-hidden="true">
+          {dark ? '\u{1F319}' : '\u2600'}
+        </span>
+        {dark ? 'Dark' : 'Light'}
+      </button>
+    </div>
+  );
+}
+
+function Readouts({dashboard, theme, onTheme}) {
   const summary = (dashboard && dashboard.summary) || {};
   const scheduler = (dashboard && dashboard.scheduler) || {};
   return (
@@ -89,6 +118,7 @@ function Readouts({dashboard}) {
         <span className="engraved">Host clock</span>
         <HostClock summary={summary} />
       </div>
+      <ThemeToggle theme={theme} onTheme={onTheme} />
     </header>
   );
 }
@@ -115,6 +145,12 @@ export default function App() {
   const [view, setView] = useState('panel');
   const [dashboard, setDashboard] = useState(null);
   const [reference, setReference] = useState(null);
+  // What this operator has chosen for themselves: the theme and the
+  // order of the cards.  Held here rather than in the panel because the
+  // theme dresses the whole shell, and because both are saved to the
+  // same per-user file in one request.
+  const [preferences, setPreferences] = useState(
+    {theme: rememberedTheme(), device_card_order: []});
   const timer = useRef(null);
   const steered = useRef(false);
 
@@ -185,6 +221,9 @@ export default function App() {
     }
     loadDashboard();
     api.get('/api/reference').then(setReference).catch(() => {});
+    api.get('/api/preferences')
+      .then((answer) => setPreferences(answer.preferences || {}))
+      .catch(() => {});
     timer.current = window.setInterval(() => {
       if (!document.hidden) {
         loadDashboard();
@@ -192,6 +231,28 @@ export default function App() {
     }, REFRESH_MS);
     return () => window.clearInterval(timer.current);
   }, [username, loadDashboard]);
+
+  const theme = cleanTheme(preferences.theme);
+
+  // The daemon's file decides, and this browser remembers the answer so
+  // the next load starts the right way round.
+  useEffect(() => {
+    applyTheme(theme);
+    rememberTheme(theme);
+  }, [theme]);
+
+  // Preferences are applied before they are saved.  Dragging a card
+  // should feel like moving a card, not like filing a request, and
+  // nothing here is worth waiting for.  The daemon's answer replaces
+  // the guess; a save that fails says so, and the file itself is read
+  // again on the next sign in.
+  function savePreferences(changes) {
+    setPreferences((current) => ({...current, ...changes}));
+    api.put('/api/preferences', {preferences: changes})
+      .then((answer) => setPreferences(answer.preferences || {}))
+      .catch((err) => notify(`that preference did not save: ${err.message}`,
+        true));
+  }
 
   async function signIn(name, password) {
     const answer = await api.post('/api/session',
@@ -271,12 +332,16 @@ export default function App() {
       </aside>
 
       <main>
-        <Readouts dashboard={dashboard} />
+        <Readouts dashboard={dashboard} theme={theme}
+          onTheme={(next) => savePreferences({theme: next})} />
         <section className="view is-current">
           {view === 'panel'
             ? (
               <Panel dashboard={dashboard} reference={reference}
-                onChanged={replaceDevice} />
+                order={preferences.device_card_order || []}
+                onChanged={replaceDevice}
+                onReorder={
+                  (order) => savePreferences({device_card_order: order})} />
             )
             : null}
           {view === 'schedules'

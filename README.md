@@ -21,7 +21,8 @@ Built on [python-kasa](https://python-kasa.readthedocs.io/).
 
 - **Panel** — one card per device with a rocker switch, brightness and
   colour-temperature sliders where the device has them, live readings, and
-  a menu to snooze the device's schedule.
+  a menu to snooze the device's schedule. Drag a card by its header to put
+  it where you want it.
 - **Schedules** — a text editor per device. Errors are reported with line
   numbers, and the next five firings are previewed before you save.
 - **Devices** — broadcast scan for devices on the LAN, or add one by IP or
@@ -39,6 +40,11 @@ in host time is never read in the wrong one by mistake.
 
 A device can be **locked**, which makes the panel ask before it does
 anything that changes that device. See [Locking a device](#locking-a-device).
+
+The switch beside the host clock turns on the **dark theme**. That and the
+order you drag your cards into are yours rather than the panel's: they are
+kept per user, so two people signed in at once each get their own. See
+[Your own panel](#your-own-panel).
 
 The foot of the side rail shows the Kasa Panel and python-kasa versions
 beside the sign-out button, which is the first thing to quote in a bug
@@ -494,12 +500,61 @@ Both fields appear in the device's own file. `locked` is also published
 to `/metrics` as `kasapanel_device_locked`; `secure_locked` is not
 published anywhere.
 
+## Your own panel
+
+Two things on the panel belong to whoever is signed in rather than to the
+installation, and they are kept in a file of that person's own:
+
+```
+/var/lib/kasapanel/users/<username>.json
+```
+
+```json
+{
+  "version": 1,
+  "username": "ada",
+  "theme": "dark",
+  "device_card_order": [
+    "0d4b2b57-6b53-4b0a-8a6f-7a3f0f2d9c11",
+    "4f0a1e2c-8d77-4c21-9f3e-1b5d6a7c8e90"
+  ]
+}
+```
+
+**The card order.** Take hold of a card by its header and drop it on
+another one; it lands where that card was standing. The grip at the left
+of the header is a button, so the arrow keys move a card as well, which
+is the only way to do it without a mouse. The card moves at once and the
+new order is saved behind it.
+
+The order is a seating plan rather than a copy of your devices. A device
+the plan knows takes its place; a device added since you last arranged
+anything appears at the end, where something new is easy to notice; and a
+device that has been removed stays in the plan, so if it comes back it
+comes back where it was.
+
+**The theme.** The switch to the right of the host clock turns the cabinet
+from day to night. It is a choice, not a guess: the panel never reads your
+desktop's preference, because on a shared machine that would show you what
+the last visitor liked. Your browser also remembers the last theme it saw,
+which is only so that a dark panel does not open light for a moment while
+the session is read.
+
+Neither of these is in `config.json` and neither appears in the activity
+log, which is a record of what happened to the devices. The file is
+written the first time you choose something; until then the defaults
+apply, and deleting it puts them back. If it is unreadable or has been
+edited into nonsense, the daemon says so in its log, falls back to the
+defaults, and carries on: nobody is kept out of the panel over a card
+order. Settings → Files shows where the directory is.
+
 ## Files
 
 ```
 /etc/kasapanel/config.json          daemon settings
 /var/lib/kasapanel/devices.json     the inventory
 /var/lib/kasapanel/devices/<id>.json  one file per device: schedule, state
+/var/lib/kasapanel/users/<name>.json  one file per user: theme, card order
 /var/lib/kasapanel/tls/panel.crt    self-signed certificate
 /var/lib/kasapanel/tls/panel.key    private key, mode 0600
 ```
@@ -515,6 +570,13 @@ arriving over HTTP can name a file at all.
 A device's own file holds its schedule, whether that schedule runs, any
 snooze, its last known state, and the two lock fields described under
 [Locking a device](#locking-a-device).
+
+A user's file is the one exception to the rule above, and the name in it
+is checked rather than scrubbed: it has to be a plain account name, and
+nothing that could be read as a path gets as far as a file name. The
+account is taken from the session and never from the request, so one
+person cannot read or write another's preferences. See
+[Your own panel](#your-own-panel).
 
 Identity across a DHCP lease change is kept in the record instead: a
 device is matched by MAC address, then by host, and keeps the identifier
@@ -921,6 +983,8 @@ POST   /api/scan                     broadcast discovery
 GET    /api/settings                 redacted settings
 PUT    /api/settings                 change settings
 GET    /api/activity                 recent log records
+GET    /api/preferences             your own theme and card order
+PUT    /api/preferences             change them {theme, device_card_order}
 GET    /api/sessions                 who is signed in
 GET    /api/reference                the action and keyword vocabulary
 GET    /healthz                      unauthenticated liveness probe
@@ -936,6 +1000,11 @@ guarded requests are the action endpoint for `on`, `off` and `toggle`
 (aliases included), `PUT .../schedule`, `POST .../snooze`, and a `PATCH`
 that sets `locked` to false. There is no `secure_locked` field on any
 request or response.
+
+`/api/preferences` is always the preferences of whoever holds the session;
+there is no way to ask for anybody else's. A theme that is not `light` or
+`dark` is ignored, and so is an entry in `device_card_order` that is not a
+device identifier.
 
 ## Design
 

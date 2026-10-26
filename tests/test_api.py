@@ -743,3 +743,146 @@ class LockTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PreferencesTest(unittest.TestCase):
+    """Each operator's own theme and card order."""
+
+    def setUp(self):
+        """Builds an application with two devices in it."""
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        config_path = os.path.join(self.tmp.name, 'config.json')
+        jsonstore.write_json(config_path, {
+            'state_dir': os.path.join(self.tmp.name, 'state'),
+            'log_level': 'CRITICAL',
+        })
+        self.app = app_lib.Application(config_path)
+        self.app.load()
+        self.app.bridge = FakeBridge()
+        self.session = self.app.sessions.create('tester')
+        self.first = self.app.devices.add('10.0.0.5').device_id
+        self.second = self.app.devices.add('10.0.0.6').device_id
+
+    def request(self, method: str, path: str, body: Any = None,
+                session: Any = None) -> api.Response:
+        """Builds and dispatches one signed in request.
+
+        Args:
+            method: HTTP method.
+            path: Request path.
+            body: JSON body, if any.
+            session: Sign in as somebody other than the usual tester.
+
+        Returns:
+            The response.
+        """
+        who = session or self.session
+        headers = {auth.CSRF_HEADER: who.csrf_token}
+        request = api.Request(
+            method=method, path=path, body=body or {},
+            cookies={auth.SESSION_COOKIE: who.token},
+            headers=lambda name, default='': headers.get(name, default),
+            remote='10.0.0.9')
+        return api.dispatch(self.app, request)
+
+    def preferences(self, session: Any = None) -> Dict[str, Any]:
+        """Reads the preferences of one session's owner.
+
+        Args:
+            session: Whose preferences to read.
+
+        Returns:
+            The preferences payload.
+        """
+        return self.request('GET', '/api/preferences',
+                            session=session).payload['preferences']
+
+    def test_a_new_operator_gets_the_defaults(self):
+        """Nobody has to choose anything before they can start."""
+        payload = self.preferences()
+        self.assertEqual(payload['theme'], 'light')
+        self.assertEqual(payload['device_card_order'], [])
+
+    def test_a_signed_out_browser_gets_nothing(self):
+        """The file is as private as the session that reaches it."""
+        request = api.Request(method='GET', path='/api/preferences')
+        self.assertEqual(api.dispatch(self.app, request).status, 401)
+
+    def test_the_theme_is_saved_and_read_back(self):
+        """The whole point of keeping it on the daemon."""
+        response = self.request('PUT', '/api/preferences',
+                                {'preferences': {'theme': 'dark'}})
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.payload['preferences']['theme'], 'dark')
+        self.assertEqual(self.preferences()['theme'], 'dark')
+
+    def test_the_card_order_is_saved_and_read_back(self):
+        """Where the operator put their cards."""
+        order = [self.second, self.first]
+        self.request('PUT', '/api/preferences',
+                     {'preferences': {'device_card_order': order}})
+        self.assertEqual(self.preferences()['device_card_order'], order)
+
+    def test_a_theme_nobody_styled_leaves_the_old_one(self):
+        """A value that cannot be used is dropped, not stored."""
+        self.request('PUT', '/api/preferences', {'theme': 'dark'})
+        response = self.request('PUT', '/api/preferences', {'theme': 'plaid'})
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.payload['preferences']['theme'], 'dark')
+
+    def test_an_order_is_only_device_identifiers(self):
+        """Nothing that is not one of our identifiers gets in."""
+        self.request('PUT', '/api/preferences', {
+            'device_card_order': [self.first, '../../etc/passwd', 7],
+        })
+        self.assertEqual(self.preferences()['device_card_order'],
+                         [self.first])
+
+    def test_preferences_must_be_an_object(self):
+        """A list of settings is not a settings object."""
+        response = self.request('PUT', '/api/preferences',
+                                {'preferences': ['dark']})
+        self.assertEqual(response.status, 400)
+
+    def test_saving_one_thing_leaves_the_other(self):
+        """Dragging a card must not undo the theme."""
+        self.request('PUT', '/api/preferences', {'theme': 'dark'})
+        self.request('PUT', '/api/preferences',
+                     {'device_card_order': [self.second]})
+        payload = self.preferences()
+        self.assertEqual(payload['theme'], 'dark')
+        self.assertEqual(payload['device_card_order'], [self.second])
+
+    def test_one_operator_cannot_see_or_set_another(self):
+        """The account comes from the session, never from the request."""
+        other = self.app.sessions.create('somebody')
+        self.request('PUT', '/api/preferences', {'theme': 'dark'})
+        self.assertEqual(self.preferences(session=other)['theme'], 'light')
+        # Naming somebody else in the body changes nothing: the field is
+        # not read, and the file written is still the session's own.
+        self.request('PUT', '/api/preferences',
+                     {'theme': 'dark', 'username': 'tester'}, session=other)
+        self.assertEqual(self.preferences(session=other)['theme'], 'dark')
+        self.assertEqual(
+            os.path.basename(self.app.users.path_for('somebody')),
+            'somebody.json')
+
+    def test_the_file_lands_in_the_users_directory(self):
+        """Where the operator can find it, and back it up."""
+        self.request('PUT', '/api/preferences', {'theme': 'dark'})
+        path = os.path.join(self.app.settings.user_dir, 'tester.json')
+        self.assertTrue(os.path.exists(path), f'{path} should have been made')
+        self.assertEqual(jsonstore.read_json(path)['theme'], 'dark')
+
+    def test_the_settings_tab_says_where_that_is(self):
+        """A path the daemon writes is a path the operator should see."""
+        paths = self.request('GET', '/api/settings').payload['paths']
+        self.assertEqual(paths['user_dir'], self.app.settings.user_dir)
+
+    def test_nothing_about_a_preference_reaches_the_activity_log(self):
+        """The log is a record of what happened to the devices."""
+        self.request('PUT', '/api/preferences', {'theme': 'dark'})
+        for record in self.app.activity.records(limit=50):
+            self.assertNotIn('theme', record['message'].lower())
+            self.assertNotIn('preference', record['message'].lower())

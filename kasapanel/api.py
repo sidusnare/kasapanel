@@ -29,6 +29,7 @@ from kasapanel import jsonstore
 from kasapanel import kasabridge
 from kasapanel import schedule as schedule_lib
 from kasapanel import snooze as snooze_lib
+from kasapanel import userstore
 
 _LOG = logging.getLogger(__name__)
 
@@ -903,6 +904,7 @@ def get_settings(app: Any, request: Request, params: Tuple[str, ...],
             'config': app.config_store.path,
             'devices': app.settings.devices_file,
             'device_dir': app.settings.device_dir,
+            'user_dir': app.settings.user_dir,
             'certificate': app.settings.resolved_certificate(),
             'key': app.settings.resolved_key(),
         },
@@ -935,6 +937,51 @@ def put_settings(app: Any, request: Request, params: Tuple[str, ...],
     actor = session.username if session else 'dashboard'
     app.activity.add('Settings saved', source=actor)
     return Response(payload={'settings': app.settings.redacted()})
+
+
+def get_preferences(app: Any, request: Request, params: Tuple[str, ...],
+                    session: Optional[auth.Session]) -> Response:
+    """Returns the preferences of the operator who asked.
+
+    There is no way to ask for somebody else's: the account is taken
+    from the session, never from the request, so a preference file is
+    reachable only by the person it belongs to.
+
+    Args:
+        app: The application.
+        request: Unused.
+        params: Unused.
+        session: The current session.
+
+    Returns:
+        That operator's theme and card order.
+    """
+    del request, params
+    username = session.username if session else ''
+    return Response(payload={'preferences': app.preferences(username)})
+
+
+def put_preferences(app: Any, request: Request, params: Tuple[str, ...],
+                    session: Optional[auth.Session]) -> Response:
+    """Saves the preferences of the operator who asked.
+
+    Args:
+        app: The application.
+        request: The decoded request.
+        params: Unused.
+        session: The current session.
+
+    Returns:
+        That operator's preferences as they now stand.
+    """
+    del params
+    username = session.username if session else ''
+    changes = request.body.get('preferences', request.body)
+    if not isinstance(changes, dict):
+        return error(400, 'preferences must be sent as an object')
+    return Response(payload={
+        'preferences': app.set_preferences(username, changes),
+    })
 
 
 def get_activity(app: Any, request: Request, params: Tuple[str, ...],
@@ -1032,6 +1079,8 @@ ROUTES: List[Tuple[str, Pattern[str], Handler, bool]] = [
     ('POST', re.compile(r'^/api/scan$'), scan, True),
     ('GET', re.compile(r'^/api/settings$'), get_settings, True),
     ('PUT', re.compile(r'^/api/settings$'), put_settings, True),
+    ('GET', re.compile(r'^/api/preferences$'), get_preferences, True),
+    ('PUT', re.compile(r'^/api/preferences$'), put_preferences, True),
     ('GET', re.compile(r'^/api/activity$'), get_activity, True),
     ('GET', re.compile(r'^/api/sessions$'), list_sessions, True),
     ('GET', re.compile(r'^/api/reference$'), reference, True),
@@ -1101,6 +1150,8 @@ def dispatch(app: Any, request: Request) -> Response:
         return error(502, str(err))
     except auth.AuthError as err:
         return error(401, str(err))
+    except userstore.UserError as err:
+        return error(400, str(err))
     except jsonstore.StoreError as err:
         _LOG.error('storage failure on %s: %s', request.path, err)
         return error(500, f'could not save to disk: {err}')

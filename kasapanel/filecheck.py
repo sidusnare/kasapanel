@@ -47,6 +47,8 @@ CONSEQUENCES = {
     'configuration': 'settings saved from the panel will fail',
     'inventory': 'devices cannot be added, renamed or removed',
     'schedules': 'schedules cannot be saved',
+    'preferences': 'the card order and theme each user chooses cannot be '
+                   'saved',
     'state': 'nothing can be stored between restarts',
     'log file': 'the log cannot be written or recreated after rotation',
     'pid file': 'the pid file will be left behind at shutdown',
@@ -169,6 +171,8 @@ def inspect(app: Any, account: Any = None) -> List[Dict[str, Any]]:
                  account=account),
         _examine(os.path.join(settings.device_dir, 'a-device.json'),
                  'schedules', source('state_dir'), account=account),
+        _examine(os.path.join(settings.user_dir, 'a-user.json'),
+                 'preferences', source('state_dir'), account=account),
         _examine(settings.resolved_certificate(), 'TLS certificate',
                  source('tls_certificate'), writing=False, account=account),
         _examine(settings.resolved_key(), 'TLS key',

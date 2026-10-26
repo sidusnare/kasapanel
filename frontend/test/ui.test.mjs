@@ -58,7 +58,7 @@ describe('sign in', () => {
     assert.ok(findByText(row, 'button', 'Sign out'),
       'the versions should share a row with the sign-out button');
     const versions = text(row.querySelector('.versions'));
-    assert.match(versions, /kasapanel 1\.7\.0/);
+    assert.match(versions, /kasapanel 1\.8\.0/);
     assert.match(versions, /python-kasa 0\.10\.2/);
   });
 
@@ -673,5 +673,259 @@ describe('signing out', () => {
     findByText(app.document, 'button', 'Sign out').click();
     await app.settle();
     assert.ok(app.document.querySelector('form.plate'));
+  });
+});
+
+// The dark theme.  It is a per-user choice kept by the daemon, so what
+// matters here is that the shell is dressed from the file rather than
+// from the browser's own taste, and that a change is written back.
+describe('the dark theme', () => {
+  function toggle(app) {
+    return app.document.querySelector('.theme-toggle');
+  }
+
+  function saved(app) {
+    return app.server.calls.filter(
+      (call) => call.pathname === '/api/preferences'
+        && call.method === 'PUT');
+  }
+
+  it('opens light, and says which way it is set', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    assert.equal(
+      app.document.documentElement.getAttribute('data-theme'), 'light');
+    assert.equal(toggle(app).getAttribute('aria-pressed'), 'false');
+    assert.match(text(toggle(app)), /Light/);
+    assert.equal(toggle(app).getAttribute('aria-label'), 'Dark mode');
+  });
+
+  it('sits to the right of the host clock', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    const strip = [...app.document.querySelectorAll('.readouts .readout')];
+    const clock = strip.findIndex(
+      (node) => text(node).startsWith('Host clock'));
+    const theme = strip.findIndex((node) => node.querySelector(
+      '.theme-toggle'));
+    assert.ok(clock >= 0, 'the host clock should be on the strip');
+    assert.ok(theme > clock,
+      'the theme switch should come after the host clock');
+    assert.equal(theme, strip.length - 1,
+      'and nothing should come after it');
+  });
+
+  it('dresses the shell and writes the choice down', async () => {
+    const app = await mount();
+    after(() => app.close());
+    await signIn(app);
+    toggle(app).click();
+    await app.settle();
+
+    assert.equal(
+      app.document.documentElement.getAttribute('data-theme'), 'dark');
+    assert.equal(toggle(app).getAttribute('aria-pressed'), 'true');
+    assert.match(text(toggle(app)), /Dark/);
+    const sent = saved(app);
+    assert.equal(sent.length, 1, 'the choice should have been saved once');
+    assert.equal(sent[0].body.preferences.theme, 'dark');
+    assert.equal(app.server.preferences.theme, 'dark',
+      'and the daemon should be holding it');
+    assert.deepEqual(app.errors, []);
+  });
+
+  it('opens dark when that is what the file says', async () => {
+    const app = await mount({theme: 'dark'});
+    after(() => app.close());
+    await signIn(app);
+    assert.equal(
+      app.document.documentElement.getAttribute('data-theme'), 'dark');
+    assert.equal(toggle(app).getAttribute('aria-pressed'), 'true');
+    assert.equal(saved(app).length, 0,
+      'reading a preference is not changing one');
+  });
+
+  // Without this the next load of a dark panel starts light and then
+  // flinches once the session is read.
+  it('leaves the answer where the next load can find it', async () => {
+    const app = await mount({theme: 'dark'});
+    after(() => app.close());
+    await signIn(app);
+    assert.equal(app.window.localStorage.getItem('kasapanel.theme'), 'dark');
+  });
+
+  it('turns back to light again', async () => {
+    const app = await mount({theme: 'dark'});
+    after(() => app.close());
+    await signIn(app);
+    toggle(app).click();
+    await app.settle();
+    assert.equal(
+      app.document.documentElement.getAttribute('data-theme'), 'light');
+    assert.equal(app.server.preferences.theme, 'light');
+  });
+});
+
+// Rearranging the cards.  The order is the operator's own, kept by the
+// daemon per user, so these cases watch both the row on screen and what
+// is sent to be remembered.
+describe('rearranging the cards', () => {
+  const BENCH = '3f7c9d1a-5b24-4e18-9c0f-2a6d8e4b7103';
+  const HALL = '7c1e4b80-2d6a-4f13-8b05-91ad3e6c7f22';
+  const SHED = 'b5390af6-41c7-4d2e-ae18-6f70c2d9b483';
+
+  function names(app) {
+    return [...app.document.querySelectorAll('.card .card-name')]
+      .map((node) => text(node));
+  }
+
+  function cards(app) {
+    return [...app.document.querySelectorAll('.card')];
+  }
+
+  function orders(app) {
+    return app.server.calls.filter(
+      (call) => call.pathname === '/api/preferences'
+        && call.method === 'PUT')
+      .map((call) => call.body.preferences.device_card_order);
+  }
+
+  // jsdom has no drag of its own, so the three events a browser sends
+  // are sent by hand, with the clipboard a real one would carry.
+  async function drag(app, from, onto) {
+    const parcel = {
+      store: {},
+      effectAllowed: '',
+      dropEffect: '',
+      setData(kind, value) { this.store[kind] = String(value); },
+      getData(kind) { return this.store[kind] || ''; },
+    };
+    const fire = async (node, kind) => {
+      const event = new app.window.Event(
+        kind, {bubbles: true, cancelable: true});
+      event.dataTransfer = parcel;
+      node.dispatchEvent(event);
+      await app.settle();
+    };
+    await fire(from.querySelector('.card-head'), 'dragstart');
+    await fire(onto, 'dragover');
+    await fire(onto, 'drop');
+    return parcel;
+  }
+
+  it('takes hold of a card by its header', async () => {
+    const app = await mount({extraCards: 2});
+    after(() => app.close());
+    await signIn(app);
+    const head = app.document.querySelector('.card .card-head');
+    assert.equal(head.getAttribute('draggable'), 'true',
+      'the header is the handle');
+    const grip = head.querySelector('.card-grip');
+    assert.ok(grip, 'and it shows a grip');
+    assert.match(grip.getAttribute('aria-label'), /Move Bench plug/);
+    assert.equal(
+      app.document.querySelector('.rocker').getAttribute('draggable'),
+      'false', 'a hand on the rocker is throwing it, not moving the card');
+  });
+
+  it('draws the cards in the order the file remembers', async () => {
+    const app = await mount({extraCards: 2, cardOrder: [SHED, HALL, BENCH]});
+    after(() => app.close());
+    await signIn(app);
+    assert.deepEqual(names(app), ['Shed heater', 'Hall lamp', 'Bench plug']);
+    assert.equal(orders(app).length, 0,
+      'reading an order is not changing one');
+  });
+
+  it('puts a device the order has never seen at the end', async () => {
+    const app = await mount({extraCards: 2, cardOrder: [HALL]});
+    after(() => app.close());
+    await signIn(app);
+    assert.deepEqual(names(app), ['Hall lamp', 'Bench plug', 'Shed heater'],
+      'a new device is noticed at the end, not shuffled into the middle');
+  });
+
+  it('moves a card where it was dropped and saves the order', async () => {
+    const app = await mount({extraCards: 2});
+    after(() => app.close());
+    await signIn(app);
+    assert.deepEqual(names(app), ['Bench plug', 'Hall lamp', 'Shed heater']);
+
+    const parcel = await drag(app, cards(app)[0], cards(app)[2]);
+    assert.equal(parcel.getData('text/plain'), BENCH,
+      'the drag should carry the device, for browsers that insist');
+    assert.deepEqual(names(app), ['Hall lamp', 'Shed heater', 'Bench plug'],
+      'the card should land where the one it was dropped on stood');
+    assert.deepEqual(orders(app), [[HALL, SHED, BENCH]]);
+    assert.deepEqual(app.server.preferences.device_card_order,
+      [HALL, SHED, BENCH]);
+    assert.deepEqual(app.errors, []);
+  });
+
+  it('moves a card back to the front again', async () => {
+    const app = await mount({extraCards: 2});
+    after(() => app.close());
+    await signIn(app);
+    await drag(app, cards(app)[2], cards(app)[0]);
+    assert.deepEqual(names(app), ['Shed heater', 'Bench plug', 'Hall lamp']);
+    assert.deepEqual(orders(app), [[SHED, BENCH, HALL]]);
+  });
+
+  it('saves nothing when a card is dropped on itself', async () => {
+    const app = await mount({extraCards: 2});
+    after(() => app.close());
+    await signIn(app);
+    await drag(app, cards(app)[1], cards(app)[1]);
+    assert.deepEqual(names(app), ['Bench plug', 'Hall lamp', 'Shed heater']);
+    assert.deepEqual(orders(app), [], 'nothing moved, so nothing to save');
+  });
+
+  it('marks the card in the hand and the one it would displace',
+    async () => {
+      const app = await mount({extraCards: 2});
+      after(() => app.close());
+      await signIn(app);
+      const event = new app.window.Event(
+        'dragstart', {bubbles: true, cancelable: true});
+      event.dataTransfer = {setData() {}, effectAllowed: ''};
+      cards(app)[0].querySelector('.card-head').dispatchEvent(event);
+      await app.settle();
+      assert.ok(cards(app)[0].className.includes('is-moving'));
+
+      const over = new app.window.Event(
+        'dragover', {bubbles: true, cancelable: true});
+      over.dataTransfer = {dropEffect: ''};
+      cards(app)[2].dispatchEvent(over);
+      await app.settle();
+      assert.ok(cards(app)[2].className.includes('is-landing'));
+      assert.ok(!cards(app)[1].className.includes('is-landing'));
+    });
+
+  // A rearrangement that needs a mouse is one half the operators cannot
+  // do at all.
+  it('moves a card with the arrow keys', async () => {
+    const app = await mount({extraCards: 2});
+    after(() => app.close());
+    await signIn(app);
+    const grip = cards(app)[0].querySelector('.card-grip');
+    grip.dispatchEvent(new app.window.KeyboardEvent(
+      'keydown', {key: 'ArrowRight', bubbles: true, cancelable: true}));
+    await app.settle();
+    assert.deepEqual(names(app), ['Hall lamp', 'Bench plug', 'Shed heater']);
+    assert.deepEqual(orders(app), [[HALL, BENCH, SHED]]);
+  });
+
+  it('leaves a card at the end of the row where it is', async () => {
+    const app = await mount({extraCards: 2});
+    after(() => app.close());
+    await signIn(app);
+    const grip = cards(app)[0].querySelector('.card-grip');
+    grip.dispatchEvent(new app.window.KeyboardEvent(
+      'keydown', {key: 'ArrowLeft', bubbles: true, cancelable: true}));
+    await app.settle();
+    assert.deepEqual(names(app), ['Bench plug', 'Hall lamp', 'Shed heater']);
+    assert.deepEqual(orders(app), [], 'it was already first');
   });
 });

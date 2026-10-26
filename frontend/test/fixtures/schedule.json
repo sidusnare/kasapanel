@@ -1,5 +1,5 @@
 {
-    "device_id": "host-d601a92033a1",
+    "device_id": "3f7c9d1a-5b24-4e18-9c0f-2a6d8e4b7103",
     "schedule": "* * * * * refresh\n",
     "schedule_enabled": true,
     "summary": {

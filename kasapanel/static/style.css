@@ -7,9 +7,19 @@
  * The panel is dressed like the enamelled control cabinet it stands in
  * for: a sage-grey ground, hairline rules, engraved labels set in the
  * utility face, and one energised green lamp per outlet.
+ *
+ * Every colour is a variable, and the only rules that name one directly
+ * are the two blocks below.  The dark theme is the same cabinet at
+ * night rather than a different cabinet: the same sage, the same green
+ * lamp, read off a dark enamel.  It is chosen rather than guessed --
+ * the root element carries data-theme="dark", which the panel writes
+ * from the operator's own preference file -- so a shared machine shows
+ * each person what they asked for instead of what the last visitor's
+ * desktop happens to prefer.
  */
 
 :root {
+  color-scheme: light;
   --enamel: #d7ddd4;
   --panel: #f6f7f3;
   --panel-sunk: #eceee7;
@@ -19,13 +29,71 @@
   --rule-soft: #cbd1c6;
   --live: #0f6b4f;
   --live-glow: #3fbd8e;
+  --live-edge: #0b5540;
+  --live-lift: #12805e;
+  --live-ink: #f2f7f3;
   --dormant: #7d857c;
   --fault: #9d2727;
+  --fault-edge: #6b1414;
+  --alarm-ground: #9d2727;
+  --alarm-ink: #ffffff;
   --attention: #9a7413;
+  --hover: #e3e7dd;
+  --rail: #cdd4c9;
+  --rail-hover: #c3cabe;
+  --rail-current: #d7ddd4;
+  --rocker-top: #e7eae2;
+  --rocker-bottom: #cfd5c9;
+  --rocker-edge: #9aa295;
+  --rocker-shine: #fbfcf9;
+  --rocker-shade: rgba(0, 0, 0, 0.14);
+  --face-top: #f4f6f1;
+  --face-bottom: #dfe4da;
+  --face-edge: #a7af9f;
+  --lamp-off: #93998f;
+  --shadow: rgba(25, 29, 26, 0.16);
+  --scrim: rgba(25, 29, 26, 0.38);
   --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --utility: ui-monospace, "SF Mono", "DejaVu Sans Mono", Menlo,
       Consolas, monospace;
   --spine: 5px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --enamel: #151814;
+  --panel: #1f231e;
+  --panel-sunk: #171a16;
+  --ink: #e3e7dd;
+  --ink-soft: #99a194;
+  --rule: #434a40;
+  --rule-soft: #2e332c;
+  --live: #4cc795;
+  --live-glow: #6fe0b4;
+  --live-edge: #2a8a67;
+  --live-lift: #5ed6a5;
+  --live-ink: #06130d;
+  --dormant: #78806f;
+  --fault: #e58b8b;
+  --fault-edge: #8a2b2b;
+  --alarm-ground: #6d1f1f;
+  --alarm-ink: #ffe4e4;
+  --attention: #d9b05a;
+  --hover: #2a2f27;
+  --rail: #121510;
+  --rail-hover: #1d211b;
+  --rail-current: #272c25;
+  --rocker-top: #2d3229;
+  --rocker-bottom: #1b1f19;
+  --rocker-edge: #4a5146;
+  --rocker-shine: rgba(255, 255, 255, 0.07);
+  --rocker-shade: rgba(0, 0, 0, 0.45);
+  --face-top: #3b4137;
+  --face-bottom: #272c24;
+  --face-edge: #565e51;
+  --lamp-off: #4d544b;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --scrim: rgba(6, 8, 6, 0.62);
 }
 
 * { box-sizing: border-box; }
@@ -101,15 +169,15 @@ button {
   cursor: pointer;
 }
 
-button:hover { background: #e3e7dd; }
+button:hover { background: var(--hover); }
 
 button.primary {
   background: var(--live);
-  border-color: #0b5540;
-  color: #f2f7f3;
+  border-color: var(--live-edge);
+  color: var(--live-ink);
 }
 
-button.primary:hover { background: #12805e; }
+button.primary:hover { background: var(--live-lift); }
 
 button.quiet { background: transparent; }
 
@@ -133,7 +201,7 @@ button[disabled] { opacity: 0.45; cursor: default; }
 }
 
 .rail {
-  background: #cdd4c9;
+  background: var(--rail);
   border-right: 1px solid var(--rule);
   padding: 18px 0 18px 0;
   display: flex;
@@ -161,12 +229,12 @@ button[disabled] { opacity: 0.45; cursor: default; }
   color: var(--ink-soft);
 }
 
-.tab:hover { background: #c3cabe; }
+.tab:hover { background: var(--rail-hover); }
 
 .tab.is-current {
   border-left-color: var(--live);
   color: var(--ink);
-  background: #d7ddd4;
+  background: var(--rail-current);
 }
 
 .rail-foot { margin-top: auto; padding: 0 18px; }
@@ -218,6 +286,23 @@ main { min-width: 0; padding: 0 0 40px; }
 
 .readout.right { margin-left: auto; }
 
+/* The theme switch: the only control in the readout strip, and the last
+   thing on it.  Set to dark it reads as a lamp that is lit, the same
+   way a card's rocker does. */
+.theme-toggle {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 6px 10px;
+}
+
+.theme-toggle[aria-pressed="true"] {
+  border-color: var(--live);
+  color: var(--live);
+}
+
+.theme-mark { font-size: 13px; line-height: 1; }
+
 .view { padding: 22px 26px; }
 
 /* ---------- device cards ---------- */
@@ -242,7 +327,45 @@ main { min-width: 0; padding: 0 0 40px; }
 .card.is-off { border-left-color: var(--dormant); }
 .card.is-disabled { opacity: 0.6; }
 
-.card-head { display: flex; gap: 12px; align-items: flex-start; }
+/* The header is the handle: the whole of it can be taken hold of and
+   dragged to put the card somewhere else.  The grip says so, and is a
+   real button so that the arrow keys can move a card as well -- a
+   rearrangement nobody can do without a mouse is a rearrangement half
+   the operators cannot do at all. */
+.card-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: grab;
+}
+
+.card-head:active { cursor: grabbing; }
+
+.card-grip {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--rule);
+  padding: 0;
+  margin: 1px 0 0 -2px;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
+  cursor: grab;
+}
+
+.card-grip:hover, .card-grip:focus-visible {
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+/* The card in the hand, and the card it is about to take the place of. */
+.card.is-moving { opacity: 0.45; }
+
+.card.is-landing {
+  outline: 2px dashed var(--live);
+  outline-offset: 2px;
+}
 
 .card-name {
   font-size: 17px;
@@ -272,9 +395,10 @@ main { min-width: 0; padding: 0 0 40px; }
   width: 62px;
   height: 34px;
   padding: 0;
-  border: 1px solid #9aa295;
-  background: linear-gradient(#e7eae2, #cfd5c9);
-  box-shadow: inset 0 1px 0 #fbfcf9, inset 0 -2px 3px rgba(0, 0, 0, 0.14);
+  border: 1px solid var(--rocker-edge);
+  background: linear-gradient(var(--rocker-top), var(--rocker-bottom));
+  box-shadow: inset 0 1px 0 var(--rocker-shine),
+      inset 0 -2px 3px var(--rocker-shade);
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -288,8 +412,8 @@ main { min-width: 0; padding: 0 0 40px; }
   bottom: 2px;
   left: 2px;
   width: 28px;
-  background: linear-gradient(#f4f6f1, #dfe4da);
-  border: 1px solid #a7af9f;
+  background: linear-gradient(var(--face-top), var(--face-bottom));
+  border: 1px solid var(--face-edge);
   transition: transform 140ms ease;
 }
 
@@ -303,7 +427,7 @@ main { min-width: 0; padding: 0 0 40px; }
   height: 8px;
   margin-top: -4px;
   border-radius: 50%;
-  background: #93998f;
+  background: var(--lamp-off);
   transition: background 140ms ease, box-shadow 140ms ease;
 }
 
@@ -367,7 +491,7 @@ button.is-snoozed { color: var(--attention); border-color: var(--attention); }
   background: var(--panel);
   border: 1px solid var(--rule);
   border-top: 3px solid var(--live);
-  box-shadow: 0 6px 18px rgba(25, 29, 26, 0.16);
+  box-shadow: 0 6px 18px var(--shadow);
 }
 
 .menu button {
@@ -401,7 +525,7 @@ button.is-snoozed { color: var(--attention); border-color: var(--attention); }
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(25, 29, 26, 0.38);
+  background: var(--scrim);
 }
 
 .modal.plate { width: min(460px, 100%); max-height: 100%; overflow: auto; }
@@ -509,9 +633,9 @@ button.link:hover { background: transparent; color: var(--ink); }
   grid-column: 1 / -1;
   margin: 0;
   padding: 12px 16px;
-  background: var(--fault);
-  color: #fff;
-  border-left: var(--spine) solid #6b1414;
+  background: var(--alarm-ground);
+  color: var(--alarm-ink);
+  border-left: var(--spine) solid var(--fault-edge);
   font-size: 13px;
   line-height: 1.5;
 }

@@ -14,8 +14,9 @@ import {CustomSnooze, SnoozeMenu} from '../components/SnoozeMenu.jsx';
 import {useToast} from '../components/Toasts.jsx';
 import {DASH, clockTime, deviceSubtitle, shortTime, stateWord, watts}
   from '../format.js';
+import {moveCard, orderDevices, shiftCard} from '../order.js';
 
-function Card({device, reference, onChanged}) {
+function Card({device, reference, onChanged, drag}) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
   const [custom, setCustom] = useState(false);
@@ -145,9 +146,67 @@ function Card({device, reference, onChanged}) {
   }
 
 
+  const moving = drag.moving === device.device_id;
+  const marks = [`card ${mark.card}`];
+  if (moving) {
+    marks.push('is-moving');
+  }
+  if (drag.over === device.device_id && !moving) {
+    marks.push('is-landing');
+  }
+
+  // The whole card takes a drop, because aiming at the header alone
+  // asks more of the hand than rearranging cards is worth.  Only the
+  // header starts one.
   return (
-    <article className={`card ${mark.card}`}>
-      <header className="card-head">
+    <article
+      className={marks.join(' ')}
+      onDragOver={(event) => {
+        if (!drag.moving) {
+          return;
+        }
+        event.preventDefault();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = 'move';
+        }
+        drag.onOver(device.device_id);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        drag.onDrop(device.device_id);
+      }}
+    >
+      <header
+        className="card-head"
+        draggable
+        onDragStart={(event) => {
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            // Firefox will not begin a drag that carries nothing, and
+            // the identifier is the one thing worth carrying.
+            event.dataTransfer.setData('text/plain', device.device_id);
+          }
+          drag.onStart(device.device_id);
+        }}
+        onDragEnd={drag.onEnd}
+      >
+        <button
+          type="button"
+          className="card-grip"
+          title="Drag the header, or use the arrow keys, to move this card"
+          aria-label={`Move ${device.display_name}; use the arrow keys`}
+          onKeyDown={(event) => {
+            const step = {ArrowLeft: -1, ArrowUp: -1,
+              ArrowRight: 1, ArrowDown: 1}[event.key];
+            if (!step) {
+              return;
+            }
+            event.preventDefault();
+            drag.onShift(device.device_id, step);
+          }}
+        >
+          <span aria-hidden="true">{'\u283F'}</span>
+        </button>
         <div>
           <h3 className="card-name">
             {device.display_name}
@@ -162,6 +221,7 @@ function Card({device, reference, onChanged}) {
           <p className="card-sub mono">{deviceSubtitle(device)}</p>
         </div>
         <Rocker
+          draggable={false}
           on={state.is_on}
           busy={busy}
           disabled={!device.enabled || state.reachable === false}
@@ -286,8 +346,40 @@ function Card({device, reference, onChanged}) {
   );
 }
 
-export default function Panel({dashboard, reference, onChanged}) {
+export default function Panel({dashboard, reference, order, onChanged,
+  onReorder}) {
   const devices = (dashboard && dashboard.devices) || [];
+  // Which card is in the hand, and which one it is hovering over.  Both
+  // are identifiers rather than positions: the dashboard poll can
+  // rebuild the list mid-drag, and a position would then mean a
+  // different card than the one under the pointer.
+  const [moving, setMoving] = useState('');
+  const [over, setOver] = useState('');
+  const shown = orderDevices(devices, order);
+  const ids = shown.map((device) => device.device_id);
+
+  function rearrange(next) {
+    if (onReorder && next.join() !== ids.join()) {
+      onReorder(next);
+    }
+  }
+
+  const drag = {
+    moving,
+    over,
+    onStart: (id) => { setMoving(id); setOver(''); },
+    onOver: (id) => setOver(id),
+    onEnd: () => { setMoving(''); setOver(''); },
+    onDrop: (id) => {
+      setOver('');
+      if (moving) {
+        setMoving('');
+        rearrange(moveCard(ids, moving, id));
+      }
+    },
+    onShift: (id, step) => rearrange(shiftCard(ids, id, step)),
+  };
+
   if (!devices.length) {
     return (
       <p className="empty">
@@ -298,9 +390,9 @@ export default function Panel({dashboard, reference, onChanged}) {
   }
   return (
     <div className="grid">
-      {devices.map((device) => (
+      {shown.map((device) => (
         <Card key={device.device_id} device={device} reference={reference}
-          onChanged={onChanged} />
+          onChanged={onChanged} drag={drag} />
       ))}
     </div>
   );

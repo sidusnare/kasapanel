@@ -228,6 +228,7 @@ def _hand_over_directories(application: Any, settings: Any,
     allowed = {
         settings.state_dir,
         settings.device_dir,
+        settings.user_dir,
         settings.tls_dir,
         os.path.dirname(config_lib.default_config_path()),
         os.path.join('/var/log', APP_NAME),
@@ -589,6 +590,7 @@ def command_paths(options: argparse.Namespace) -> int:
         'state_dir': settings.state_dir,
         'devices': settings.devices_file,
         'device_dir': settings.device_dir,
+        'user_dir': settings.user_dir,
         'certificate': settings.resolved_certificate(),
         'key': settings.resolved_key(),
     }, indent=2, sort_keys=True))

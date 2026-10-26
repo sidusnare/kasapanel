@@ -62,8 +62,8 @@ class FileCheckTest(unittest.TestCase):
                     for report in filecheck.inspect(self.app)}
         self.assertEqual(
             purposes,
-            {'configuration', 'inventory', 'schedules', 'TLS certificate',
-             'TLS key'})
+            {'configuration', 'inventory', 'schedules', 'preferences',
+             'TLS certificate', 'TLS key'})
 
     def test_the_log_file_is_checked_when_configured(self):
         """A log file only appears in the report when there is one."""

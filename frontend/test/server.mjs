@@ -36,14 +36,34 @@ function localZone() {
   };
 }
 
+// Stand-ins for devices the recorded dashboard does not have, for the
+// tests that need more than one card to rearrange.
+export const EXTRA_CARDS = [
+  ['7c1e4b80-2d6a-4f13-8b05-91ad3e6c7f22', 'Hall lamp'],
+  ['b5390af6-41c7-4d2e-ae18-6f70c2d9b483', 'Shed heater'],
+];
+
 export function createServer({acceptCookie = true, lastResort = false,
-  hostZone = '', locked = false, securePassword = ''} = {}) {
+  hostZone = '', locked = false, securePassword = '', extraCards = 0,
+  theme = 'light', cardOrder = []} = {}) {
   const calls = [];
   let signedIn = false;
   const token = 'session-token-xyz';
   const csrf = 'csrf-token-abc';
   const devices = fixture('dashboard').devices
     .map((d) => ({...d, locked: Boolean(locked)}));
+  EXTRA_CARDS.slice(0, extraCards).forEach(([deviceId, name]) => {
+    devices.push({...devices[0], device_id: deviceId, alias: name,
+      display_name: name});
+  });
+
+  // The per-user preference file, as far as a browser can tell.
+  const preferences = {
+    version: 1,
+    username: 'ada',
+    theme,
+    device_card_order: [...cardOrder],
+  };
 
   // The lock as the daemon enforces it: a change to a locked device
   // needs confirm, and a secure_locked one needs the password too --
@@ -137,6 +157,19 @@ export function createServer({acceptCookie = true, lastResort = false,
     }
     if (pathname === '/api/reference') {
       return reply(200, fixture('reference'));
+    }
+    if (pathname === '/api/preferences' && method === 'GET') {
+      return reply(200, {preferences});
+    }
+    if (pathname === '/api/preferences' && method === 'PUT') {
+      const changes = body.preferences || body;
+      if (['light', 'dark'].includes(changes.theme)) {
+        preferences.theme = changes.theme;
+      }
+      if (Array.isArray(changes.device_card_order)) {
+        preferences.device_card_order = [...changes.device_card_order];
+      }
+      return reply(200, {preferences});
     }
     if (pathname === '/api/activity') {
       return reply(200, fixture('activity'));
@@ -253,5 +286,5 @@ export function createServer({acceptCookie = true, lastResort = false,
   }
 
   const cookieJar = [];
-  return {calls, handle, token, csrf};
+  return {calls, handle, token, csrf, preferences};
 }
