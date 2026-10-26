@@ -801,6 +801,43 @@ textarea {
 
 .table td.actions { text-align: right; white-space: nowrap; }
 
+/* The files card lists paths, and a path is one long word: there is no
+   space in it to break at, so the narrowest the table can be is the
+   longest path in it, and it runs off the side of the card.  Two rules
+   settle it between them.
+
+   `anywhere` rather than `break-word`, because only `anywhere` lets a
+   break shrink what the cell asks for; with `break-word` the table
+   still demands the whole path and still overflows.
+
+   And when the card is too narrow to carry a label and a path side by
+   side, the row stacks: the path drops beneath its own label and wraps
+   there, with the hairline rule left to the path so a row still ends
+   with one.  What matters is the width of the card and not the width of
+   the window -- this card is narrow on a wide screen, in the right-hand
+   column of the settings page, and wide on a phone, where the columns
+   stack -- so the question is asked of the card. */
+
+.block.files { container-type: inline-size; }
+
+.files .table td.mono { overflow-wrap: anywhere; }
+
+@container (max-width: 420px) {
+  .files .table tr, .files .table td { display: block; }
+  .files .table td.engraved { padding: 7px 8px 0; border-bottom: 0; }
+  .files .table td.mono { padding: 0 8px 7px; }
+}
+
+/* The same trouble next door: the certificate card sits in the same
+   narrow column, and a subject, a list of names and a fingerprint are
+   all long strings with nowhere obvious to break.  They may break
+   mid-string as well.  Their rows stay side by side; only the files
+   card stacks. */
+
+.certificate .table td, .certificate .note.mono {
+  overflow-wrap: anywhere;
+}
+
 .table tr.level-error td { color: var(--fault); }
 .table tr.level-warning td { color: var(--attention); }
 

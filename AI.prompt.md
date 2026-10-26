@@ -571,6 +571,17 @@ issuer, whether it is self-signed, validity dates, fingerprint — with a
 **live countdown to expiry** that ticks by the second in the last two
 days and by the minute otherwise, and turns red once inside 48 hours.
 
+The values in that column — paths, a subject, a fingerprint — are long
+strings with nowhere obvious to break, and they sit in a card a few
+hundred pixels wide, so **let them break mid-string**: `anywhere`, not
+`break-word`, because only `anywhere` lets the break shrink what the
+cell asks for, and a table that still demands the whole path still runs
+off the side of the card. When the files card is too narrow to carry a
+label and a path side by side, **the path drops beneath its label** and
+wraps there. Ask that of the **card** and not the window — a container
+query — because this card is narrow on a wide screen, in the right-hand
+column, and wide on a phone, where the columns stack.
+
 ## 12. Testing
 
 Python: unit tests for the cron parser and its edge cases, the schedule

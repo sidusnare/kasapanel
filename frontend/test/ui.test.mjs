@@ -58,7 +58,7 @@ describe('sign in', () => {
     assert.ok(findByText(row, 'button', 'Sign out'),
       'the versions should share a row with the sign-out button');
     const versions = text(row.querySelector('.versions'));
-    assert.match(versions, /kasapanel 1\.8\.0/);
+    assert.match(versions, /kasapanel 1\.8\.1/);
     assert.match(versions, /python-kasa 0\.10\.2/);
   });
 
