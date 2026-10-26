@@ -48,7 +48,9 @@ kept per user, so two people signed in at once each get their own. See
 
 The foot of the side rail shows the Kasa Panel and python-kasa versions
 beside the sign-out button, which is the first thing to quote in a bug
-report.
+report. It stays in view however long the page beside it runs; only the
+rail's own contents can push it down, on a window too short to hold the
+tabs and the foot at once.
 
 ## Requirements
 

@@ -512,6 +512,14 @@ The foot of the side rail shows the **Kasa Panel and python-kasa
 versions** beside the **Sign out** button, taken from the dashboard
 payload; python-kasa's comes from its distribution metadata.
 
+Keep that foot **in view whatever the main column is doing**. The rail is
+as tall as the window and pinned to the top of it, not stretched to the
+height of the grid row — a stretched rail puts its foot at the bottom
+of a long settings page, where signing out means scrolling first. The one
+thing allowed to push the foot down is the rail's **own** content: when a
+short window cannot hold the tabs and the foot together, the rail scrolls
+by itself and the main column stays where it is.
+
 The readouts along the top end with the **host clock**, shown **to the
 second and with the daemon's time zone**. It ticks once a second between
 polls and resets its reckoning on each one, because a clock that shows

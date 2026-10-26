@@ -200,12 +200,26 @@ button[disabled] { opacity: 0.45; cursor: default; }
   min-height: 100vh;
 }
 
+/* The rail is as tall as the window and no taller, pinned to the top of
+   it, so the sign-out button and the versions at its foot stay in view
+   however long the page beside them runs.  Without this the rail is
+   stretched to the height of the grid row, which the main column sets,
+   and its foot ends up at the bottom of a settings page nobody has
+   scrolled to.  align-self keeps the grid from stretching it, which
+   would leave sticky with nothing to do.  Should the rail's own content
+   outgrow the window -- a long tab list on a short screen -- the foot
+   is pushed below the fold and the rail scrolls to it on its own. */
 .rail {
   background: var(--rail);
   border-right: 1px solid var(--rule);
   padding: 18px 0 18px 0;
   display: flex;
   flex-direction: column;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .brand {
@@ -872,6 +886,9 @@ textarea {
     border-right: 0;
     border-bottom: 1px solid var(--rule);
     padding: 12px 0 0;
+    position: static;
+    height: auto;
+    overflow: visible;
   }
   #nav { flex-direction: row; overflow-x: auto; }
   .tab {
