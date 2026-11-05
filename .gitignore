@@ -224,3 +224,6 @@ __marimo__/
 # Node.js dependencies (restored with: npm ci)
 /node_modules/
 frontend/node_modules/
+
+# Rendered diagrams; the source is the Markdown in docs/architecture.md.
+/build/

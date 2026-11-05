@@ -27,6 +27,20 @@ invented after the fact would read as though somebody had checked them.
 
 ## [Unreleased]
 
+### Added
+
+- `docs/architecture.md`, a C4 model of the daemon: the system in
+  context, its containers, its components over four views, two
+  sequences worth following, and the deployment. The diagrams are
+  Mermaid blocks in the document itself, so GitHub renders them where
+  they are read and there is no second copy to fall out of date.
+- A diagrams workflow that renders those blocks to SVG and PNG on every
+  push and uploads them, so there are image files for slides and
+  offline copies. It fails when a block stops parsing, which is the
+  failure that would otherwise land unnoticed.
+- `npm run diagrams` and `npm run diagrams:check` for the same job
+  locally, through `tools/render_diagrams.py`.
+
 ## [1.8.3] - 2026-11-05
 
 A housekeeping release: no behaviour changes, so nothing an operator

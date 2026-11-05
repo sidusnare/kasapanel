@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
+
+# Renders the C4 diagrams in docs/architecture.md to image files.
+#
+# The Markdown is the only copy of each diagram, and GitHub renders the
+# blocks where they stand, so nothing is committed back here.  This job
+# exists for two reasons: it hands out SVG and PNG files for slides and
+# offline documents, and it fails when a block stops parsing, which is
+# the failure that would otherwise reach main unnoticed.
+
+name: diagrams
+
+# Quoted because yamllint reads a bare "on" as the boolean true.
+'on':
+  push:
+    branches: [main]
+    paths:
+      - docs/architecture.md
+      - tools/render_diagrams.py
+      - package.json
+      - package-lock.json
+      - .github/workflows/diagrams.yml
+  pull_request:
+    paths:
+      - docs/architecture.md
+      - tools/render_diagrams.py
+      - package.json
+      - package-lock.json
+      - .github/workflows/diagrams.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A second push supersedes the first; the images are not cumulative.
+  group: diagrams-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the tree
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          # The engines field in package.json is the authority; this
+          # is the line the project develops on.
+          node-version: '26'
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the documentation tooling
+        # Not frontend/; that is a separate project with its own lock.
+        run: npm ci
+
+      - name: Install Chromium for Puppeteer
+        # package.json leaves Puppeteer's own postinstall denied, so the
+        # browser is fetched here instead, where it is wanted.  The
+        # render script finds it through PUPPETEER_EXECUTABLE_PATH.
+        run: |
+          chrome=$(npx puppeteer browsers install chrome \
+            --format '{{path}}' | tail -n 1)
+          echo "PUPPETEER_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
+          "$chrome" --version
+
+      - name: Render the diagrams
+        run: npm run diagrams
+
+      - name: Upload the images
+        uses: actions/upload-artifact@v7
+        with:
+          name: c4-diagrams-${{ github.sha }}
+          path: build/diagrams/
+          if-no-files-found: error
+          retention-days: 30

@@ -1087,6 +1087,12 @@ shapes, and the `/metrics` output described under [Metrics](#metrics).
 
 ## Design
 
+[docs/architecture.md](docs/architecture.md) draws this as a
+[C4 model](https://c4model.com/): the system in context, its
+containers, its components, two sequences worth following, and the
+deployment. The diagrams are Mermaid blocks that GitHub renders where
+they stand.
+
 Threads, not a framework. python-kasa is asyncio, so one thread owns a
 single event loop and every device object; the HTTP threads hand it
 coroutines and wait with a timeout. A minute-tick thread half a second past
@@ -1154,6 +1160,24 @@ npm run lint:md
 
 Its rules are in `.markdownlint.yaml` and the files it reads are in
 `.markdownlint-cli2.yaml`.
+
+The same root `package.json` renders the architecture diagrams to image
+files. GitHub renders the Mermaid blocks on its own, so this is only
+needed for slides, offline copies, or to check that a block you changed
+still parses:
+
+```sh
+npm run diagrams         # SVG and PNG into build/diagrams/
+npm run diagrams:check   # parse and render, keeping nothing
+```
+
+It drives a headless Chromium through mermaid-cli, and looks for
+`chromium` and then `google-chrome` on the path. Set
+`PUPPETEER_EXECUTABLE_PATH` to name a different one. The
+[diagrams workflow](.github/workflows/diagrams.yml) does the same on
+every push and uploads the images; it fails if a block stops parsing.
+`tests/test_diagrams.py` catches the mistakes that need no browser,
+such as a block with no name.
 
 `AI.prompt.md` holds a prompt that regenerates this project. It is meant
 to stay accurate: if you change what the daemon does, change it to

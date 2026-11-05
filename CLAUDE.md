@@ -61,6 +61,7 @@ ruff check . && ruff format --check .
 reuse lint
 yamllint -c .yamllint.yaml .
 npm ci && npm run lint:md          # documentation tooling, at the root
+npm run diagrams:check             # the C4 blocks still parse
 cd frontend && npm ci && npx eslint . && npm run build && npm test
 ```
 
@@ -72,11 +73,30 @@ yamllint and ESLint are silent; the browser suite is 50/50.
 Rebuild `kasapanel/static/bundle.js` with `npm run build` whenever
 `frontend/src` changes, and commit it: it is a shipped file.
 
+### The architecture diagrams
+
+[`docs/architecture.md`](docs/architecture.md) is a C4 model, and the
+Mermaid blocks in it are the only copy. Nothing is committed to
+`build/diagrams/`; GitHub renders the blocks directly. Change the
+block, not an image.
+
+Mermaid's C4 renderer is a grid with straight lines, not a router, so
+the `UpdateRelStyle` offsets at the foot of most blocks are hand-tuned
+to keep edge labels off the boxes. Change a label's text and its offset
+probably needs moving too; render and look before pushing. Keep each
+diagram small -- a component diagram with a dozen boxes renders as a
+thicket, which is why the component level is six diagrams and not one.
+
+`tests/test_diagrams.py` catches what needs no browser: an unnamed
+block, a duplicate name, a missing C4 level. `npm run diagrams:check`
+is the one that actually renders.
+
 ### Two npm projects
 
 There are two, and they are not interchangeable. The root
-`package.json` holds documentation tooling only -- markdownlint -- and
-`frontend/package.json` holds the browser application. `npm ci` in one
+`package.json` holds documentation tooling only -- markdownlint and
+mermaid-cli -- and `frontend/package.json` holds the browser
+application. `npm ci` in one
 does nothing for the other, so the checks above run it twice.
 
 ESLint is held at the 9 series because `eslint-plugin-react`
