@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """The threaded HTTPS server.
 
 One thread per connection, which is what lets several people use the
@@ -26,15 +26,13 @@ import socket
 import socketserver
 import ssl
 import urllib.parse
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
-from kasapanel import api
-from kasapanel import metrics
+from kasapanel import api, metrics
 
 _LOG = logging.getLogger(__name__)
 
-STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          'static')
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 
 INDEX_FILE = 'index.html'
 
@@ -43,10 +41,12 @@ SECURITY_HEADERS = (
     ('X-Frame-Options', 'DENY'),
     ('Referrer-Policy', 'no-referrer'),
     ('Cross-Origin-Opener-Policy', 'same-origin'),
-    ('Content-Security-Policy',
-     "default-src 'none'; script-src 'self'; style-src 'self'; "
-     "img-src 'self' data:; connect-src 'self'; form-action 'none'; "
-     "base-uri 'none'; frame-ancestors 'none'"),
+    (
+        'Content-Security-Policy',
+        "default-src 'none'; script-src 'self'; style-src 'self'; "
+        "img-src 'self' data:; connect-src 'self'; form-action 'none'; "
+        "base-uri 'none'; frame-ancestors 'none'",
+    ),
 )
 
 CACHE_CONTROL_STATIC = 'no-cache'
@@ -60,8 +60,13 @@ class PanelServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     allow_reuse_address = True
     address_family = socket.AF_INET
 
-    def __init__(self, address: Tuple[str, int], handler: Any,
-                 application: Any, context: ssl.SSLContext):
+    def __init__(
+        self,
+        address: tuple[str, int],
+        handler: Any,
+        application: Any,
+        context: ssl.SSLContext,
+    ):
         """Initialises and binds the server.
 
         Args:
@@ -83,8 +88,7 @@ class PanelServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
             client_address: Address of the client.
         """
         del request
-        _LOG.debug('connection from %s failed', client_address,
-                   exc_info=True)
+        _LOG.debug('connection from %s failed', client_address, exc_info=True)
 
 
 class PanelHandler(http.server.BaseHTTPRequestHandler):
@@ -159,8 +163,9 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
         path = urllib.parse.unquote(parsed.path)
         try:
             if path == '/healthz':
-                self._send_bytes(200, b'ok\n', 'text/plain; charset=utf-8',
-                                 method == 'HEAD')
+                self._send_bytes(
+                    200, b'ok\n', 'text/plain; charset=utf-8', method == 'HEAD'
+                )
             elif path == '/metrics':
                 self._serve_metrics(method)
             elif path.startswith('/api/'):
@@ -175,7 +180,7 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
             _LOG.exception('unhandled error on %s %s: %s', method, path, err)
             self._send_json(500, {'error': 'the daemon hit an internal error'})
 
-    def _read_body(self) -> Dict[str, Any]:
+    def _read_body(self) -> dict[str, Any]:
         """Reads and decodes a JSON request body.
 
         Returns:
@@ -188,8 +193,9 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get('Content-Length', '0'))
         except ValueError as err:
-            raise ValueError('the Content-Length header is not a number'
-                             ) from err
+            raise ValueError(
+                'the Content-Length header is not a number'
+            ) from err
         if length <= 0:
             return {}
         if length > api.MAX_BODY_BYTES:
@@ -203,7 +209,7 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
             raise ValueError('the request body must be a JSON object')
         return document
 
-    def _cookies(self) -> Dict[str, str]:
+    def _cookies(self) -> dict[str, str]:
         """Returns the cookies sent with the request."""
         jar = http.cookies.SimpleCookie()
         try:
@@ -249,7 +255,8 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
             cookies=self._cookies(),
             headers=lambda name, default='': self.headers.get(name, default),
             remote=self.address_string(),
-            user_agent=self.headers.get('User-Agent', ''))
+            user_agent=self.headers.get('User-Agent', ''),
+        )
         response = api.dispatch(self.application, request)
         self._send_json(response.status, response.payload, response.cookies)
 
@@ -271,11 +278,12 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(404, {'error': 'no such page'})
             return
         guessed, _ = mimetypes.guess_type(target)
-        self._send_bytes(200, payload, guessed or 'application/octet-stream',
-                         head_only)
+        self._send_bytes(
+            200, payload, guessed or 'application/octet-stream', head_only
+        )
 
     @staticmethod
-    def _resolve_static(path: str) -> Optional[str]:
+    def _resolve_static(path: str) -> str | None:
         """Maps a request path to a file inside the static directory.
 
         Args:
@@ -297,10 +305,15 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
             return None
         return target
 
-    def _send_bytes(self, status: int, payload: bytes, content_type: str,
-                    head_only: bool = False,
-                    cookies: Optional[list] = None,
-                    cache: str = CACHE_CONTROL_STATIC) -> None:
+    def _send_bytes(
+        self,
+        status: int,
+        payload: bytes,
+        content_type: str,
+        head_only: bool = False,
+        cookies: list | None = None,
+        cache: str = CACHE_CONTROL_STATIC,
+    ) -> None:
         """Writes a complete response.
 
         Args:
@@ -323,8 +336,9 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
         if not head_only:
             self.wfile.write(payload)
 
-    def _send_json(self, status: int, payload: Dict[str, Any],
-                   cookies: Optional[list] = None) -> None:
+    def _send_json(
+        self, status: int, payload: dict[str, Any], cookies: list | None = None
+    ) -> None:
         """Writes a JSON response.
 
         Args:
@@ -333,9 +347,14 @@ class PanelHandler(http.server.BaseHTTPRequestHandler):
             cookies: Ready made Set-Cookie header values.
         """
         encoded = json.dumps(payload, default=str).encode('utf-8')
-        self._send_bytes(status, encoded, 'application/json; charset=utf-8',
-                         head_only=False, cookies=cookies,
-                         cache=CACHE_CONTROL_API)
+        self._send_bytes(
+            status,
+            encoded,
+            'application/json; charset=utf-8',
+            head_only=False,
+            cookies=cookies,
+            cache=CACHE_CONTROL_API,
+        )
 
 
 def build_tls_context(certificate: str, key: str) -> ssl.SSLContext:
@@ -370,11 +389,18 @@ def create_server(application: Any) -> PanelServer:
         OSError: If the TLS material is unreadable or the port is busy.
     """
     settings = application.settings
-    context = build_tls_context(settings.resolved_certificate(),
-                                settings.resolved_key())
+    context = build_tls_context(
+        settings.resolved_certificate(), settings.resolved_key()
+    )
     server = PanelServer(
         (settings.listen_host, int(settings.listen_port)),
-        PanelHandler, application, context)
-    _LOG.info('listening on https://%s:%d/',
-              settings.listen_host, settings.listen_port)
+        PanelHandler,
+        application,
+        context,
+    )
+    _LOG.info(
+        'listening on https://%s:%d/',
+        settings.listen_host,
+        settings.listen_port,
+    )
     return server

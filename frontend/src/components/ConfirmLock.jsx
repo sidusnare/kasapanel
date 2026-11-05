@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-// see docs/ai-bom.spdx.json for the AI usage declaration.
+// SPDX-FileContributor: Claude Opus 5 (AI-generated)
+// AI usage declaration: docs/ai-bom.spdx.json
 
 // The yes/no plate a locked device puts in front of anything that would
 // switch it, reschedule it or snooze it.

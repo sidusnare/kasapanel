@@ -4,3 +4,6 @@
 
 -r requirements.txt
 pylint>=3.0
+ruff>=0.17
+reuse>=5.0
+yamllint>=1.37

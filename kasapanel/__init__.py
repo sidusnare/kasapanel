@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Kasa Panel: a threaded HTTPS dashboard for python-kasa devices.
 
 The package is organised in layers so that each piece can be tested on
@@ -24,7 +24,11 @@ its own:
 * :mod:`kasapanel.cli` -- the command line entry point.
 """
 
-__version__ = '1.8.2'
+# The single definition of the project version.  Everything else
+# derives it from here: pyproject.toml through setuptools' dynamic
+# metadata, the SBOM tools by importing it, and the browser bundle
+# through the dashboard payload.  See tests/test_version.py.
+__version__ = '1.8.3'
 __license__ = 'GPL-3.0-or-later'
 
 APP_NAME = 'kasapanel'

@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.cron`."""
 
 import datetime
@@ -59,9 +59,17 @@ class ParseTest(unittest.TestCase):
 
     def test_bad_expressions(self):
         """Malformed expressions are rejected with a message."""
-        for text in ('', '* * * *', '61 * * * *', '* * * * 9',
-                     'every minute', '@yearlyish', '5-1 * * * *',
-                     '*/0 * * * *', '0 0 * * mon-'):
+        for text in (
+            '',
+            '* * * *',
+            '61 * * * *',
+            '* * * * 9',
+            'every minute',
+            '@yearlyish',
+            '5-1 * * * *',
+            '*/0 * * * *',
+            '0 0 * * mon-',
+        ):
             with self.assertRaises(cron.CronError):
                 cron.CronExpression.parse(text)
 
@@ -85,17 +93,23 @@ class MatchTest(unittest.TestCase):
     def test_next_run(self):
         """The next run is the first later matching minute."""
         expression = cron.CronExpression.parse('0 6 * * *')
-        self.assertEqual(expression.next_run(moment('2026-07-28 09:30')),
-                         moment('2026-07-29 06:00'))
+        self.assertEqual(
+            expression.next_run(moment('2026-07-28 09:30')),
+            moment('2026-07-29 06:00'),
+        )
         quarter = cron.CronExpression.parse('*/15 * * * *')
-        self.assertEqual(quarter.next_run(moment('2026-07-28 09:30')),
-                         moment('2026-07-28 09:45'))
+        self.assertEqual(
+            quarter.next_run(moment('2026-07-28 09:30')),
+            moment('2026-07-28 09:45'),
+        )
 
     def test_next_run_is_strictly_later(self):
         """A rule due right now returns the following firing."""
         expression = cron.CronExpression.parse('30 9 * * *')
-        self.assertEqual(expression.next_run(moment('2026-07-28 09:30')),
-                         moment('2026-07-29 09:30'))
+        self.assertEqual(
+            expression.next_run(moment('2026-07-28 09:30')),
+            moment('2026-07-29 09:30'),
+        )
 
     def test_impossible_dates(self):
         """A date that never happens has no next run."""

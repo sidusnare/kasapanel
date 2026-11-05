@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.privsep`.
 
 The parts that need root are exercised only when the tests are run as
@@ -22,13 +22,10 @@ import threading
 import unittest
 from unittest import mock
 
-from kasapanel import auth
-from kasapanel import config
-from kasapanel import privsep
+from kasapanel import auth, config, privsep
 
 
-def account(name: str, uid: int = 1000,
-            gid: int = 1000) -> pwd.struct_passwd:
+def account(name: str, uid: int = 1000, gid: int = 1000) -> pwd.struct_passwd:
     """Builds a password database entry.
 
     Args:
@@ -40,7 +37,8 @@ def account(name: str, uid: int = 1000,
         The entry.
     """
     return pwd.struct_passwd(
-        (name, 'x', uid, gid, '', f'/home/{name}', '/usr/sbin/nologin'))
+        (name, 'x', uid, gid, '', f'/home/{name}', '/usr/sbin/nologin')
+    )
 
 
 class ResolveUserTest(unittest.TestCase):
@@ -64,6 +62,7 @@ class ResolveUserTest(unittest.TestCase):
 
     def test_falls_back_to_www_data(self):
         """With nothing configured, the usual service account is used."""
+
         def lookup(name):
             if name == 'www-data':
                 return account('www-data', 33, 33)
@@ -76,6 +75,7 @@ class ResolveUserTest(unittest.TestCase):
 
     def test_falls_back_to_httpd(self):
         """On systems that call it httpd instead."""
+
         def lookup(name):
             if name == 'httpd':
                 return account('httpd', 48, 48)
@@ -88,6 +88,7 @@ class ResolveUserTest(unittest.TestCase):
 
     def test_falls_back_to_nobody_and_says_so(self):
         """The last resort is flagged, because it needs fixing."""
+
         def lookup(name):
             if name == 'nobody':
                 return account('nobody', 65534, 65534)
@@ -107,8 +108,9 @@ class ResolveUserTest(unittest.TestCase):
 
     def test_naming_nobody_explicitly_still_warns(self):
         """Configuring the last resort by hand does not excuse it."""
-        with mock.patch('pwd.getpwnam',
-                        return_value=account('nobody', 65534, 65534)):
+        with mock.patch(
+            'pwd.getpwnam', return_value=account('nobody', 65534, 65534)
+        ):
             found, last_resort = privsep.resolve_user('nobody')
         self.assertEqual(found.pw_name, 'nobody')
         self.assertTrue(last_resort)
@@ -186,8 +188,9 @@ class HelperConversationTest(unittest.TestCase):
 
         def run():
             """Serves until the client hangs up."""
-            with mock.patch.object(auth, 'new_authenticator',
-                                   return_value=FakeSession()):
+            with mock.patch.object(
+                auth, 'new_authenticator', return_value=FakeSession()
+            ):
                 # pylint: disable=protected-access
                 privsep._serve_helper(there)
             there.close()
@@ -209,8 +212,15 @@ class HelperConversationTest(unittest.TestCase):
         """The one process that can engage PAM declines to, for this."""
         client = self.serve({'': True})
         # pylint: disable=protected-access
-        privsep._send(client, {'op': 'auth', 'username': 'ada',
-                               'password': '', 'service': 'login'})
+        privsep._send(
+            client,
+            {
+                'op': 'auth',
+                'username': 'ada',
+                'password': '',
+                'service': 'login',
+            },
+        )
         answer = privsep._receive(client)
         self.assertIn('password', str(answer.get('error', '')))
         self.assertNotIn('accepted', answer)
@@ -239,8 +249,9 @@ class HelperConversationTest(unittest.TestCase):
 
         def run():
             """Serves until the client hangs up."""
-            with mock.patch.object(auth, 'new_authenticator',
-                                   side_effect=flaky):
+            with mock.patch.object(
+                auth, 'new_authenticator', side_effect=flaky
+            ):
                 # pylint: disable=protected-access
                 privsep._serve_helper(there)
             there.close()
@@ -276,8 +287,10 @@ class AuthenticatorDelegationTest(unittest.TestCase):
         the limit exists to stop; the limit has its own tests.
         """
         auth.PAM_RATE_LIMIT.set_interval(0)
-        self.addCleanup(auth.PAM_RATE_LIMIT.set_interval,
-                        auth.DEFAULT_PAM_RATE_LIMIT_SECONDS)
+        self.addCleanup(
+            auth.PAM_RATE_LIMIT.set_interval,
+            auth.DEFAULT_PAM_RATE_LIMIT_SECONDS,
+        )
         self.addCleanup(auth.PAM_RATE_LIMIT.reset)
 
     def test_the_verifier_is_used_instead_of_local_pam(self):
@@ -299,36 +312,42 @@ class AuthenticatorDelegationTest(unittest.TestCase):
             return True
 
         authenticator = auth.Authenticator(
-            config.PanelConfig(pam_service='kasapanel',
-                               pam_rate_limit_seconds=0), verifier=verify)
+            config.PanelConfig(
+                pam_service='kasapanel', pam_rate_limit_seconds=0
+            ),
+            verifier=verify,
+        )
         self.assertEqual(authenticator.authenticate('ada', 'secret'), 'ada')
         self.assertEqual(seen, [('ada', 'secret', 'kasapanel')])
 
     def test_policy_is_still_applied_on_this_side(self):
         """The allow list and the lockout are not delegated."""
         authenticator = auth.Authenticator(
-            config.PanelConfig(allowed_users=['grace'],
-                               max_login_failures=2,
-                               pam_rate_limit_seconds=0),
-            verifier=lambda *args: True)
+            config.PanelConfig(
+                allowed_users=['grace'],
+                max_login_failures=2,
+                pam_rate_limit_seconds=0,
+            ),
+            verifier=lambda *args: True,
+        )
         with self.assertRaises(auth.AuthError) as caught:
             authenticator.authenticate('ada', 'secret')
         self.assertIn('not allowed', str(caught.exception))
 
         refusing = auth.Authenticator(
-            config.PanelConfig(max_login_failures=2,
-                               pam_rate_limit_seconds=0),
-            verifier=lambda *args: False)
+            config.PanelConfig(max_login_failures=2, pam_rate_limit_seconds=0),
+            verifier=lambda *args: False,
+        )
         for _ in range(2):
             with self.assertRaises(auth.AuthError):
                 refusing.authenticate('ada', 'wrong')
         with self.assertRaises(auth.AuthError) as caught:
             refusing.authenticate('ada', 'wrong')
-        self.assertIn('too many failed attempts',
-                      str(caught.exception).lower())
+        self.assertIn('too many failed attempts', str(caught.exception).lower())
 
     def test_a_helper_failure_reads_as_an_auth_error(self):
         """A broken helper does not leak its own exception type."""
+
         def explode(*args):
             """Fails the way a dead helper does.
 
@@ -341,8 +360,9 @@ class AuthenticatorDelegationTest(unittest.TestCase):
             del args
             raise auth.AuthError('the authentication helper stopped')
 
-        authenticator = auth.Authenticator(config.PanelConfig(),
-                                           verifier=explode)
+        authenticator = auth.Authenticator(
+            config.PanelConfig(), verifier=explode
+        )
         with self.assertRaises(auth.AuthError):
             authenticator.authenticate('ada', 'secret')
 
@@ -426,8 +446,7 @@ class DirectoryPermissionTest(unittest.TestCase):
 
     def test_a_read_only_directory_is_not(self):
         """Owning the file inside would not be enough to remove it."""
-        other = account('someone-else', self.me.pw_uid + 1,
-                        self.me.pw_gid + 1)
+        other = account('someone-else', self.me.pw_uid + 1, self.me.pw_gid + 1)
         os.chmod(self.tmp, 0o755)
         self.assertFalse(privsep.writable_by(self.tmp, other))
         os.chmod(self.tmp, 0o777)
@@ -436,7 +455,8 @@ class DirectoryPermissionTest(unittest.TestCase):
     def test_a_missing_directory_is_not_writable(self):
         """Nothing there is not somewhere we can write."""
         self.assertFalse(
-            privsep.writable_by(os.path.join(self.tmp, 'absent'), self.me))
+            privsep.writable_by(os.path.join(self.tmp, 'absent'), self.me)
+        )
 
 
 class AllowedDirectoryTest(unittest.TestCase):
@@ -464,8 +484,9 @@ class AllowedDirectoryTest(unittest.TestCase):
         """The daemon's own directories are handed over."""
         path = self.make('state')
         with mock.patch('os.chown') as chown:
-            self.assertTrue(privsep.own_directory_if_allowed(
-                path, 1234, 5678, {path}))
+            self.assertTrue(
+                privsep.own_directory_if_allowed(path, 1234, 5678, {path})
+            )
         chown.assert_called_once_with(path, 1234, 5678)
 
     # The rule used to be "any directory called kasapanel", which also
@@ -475,16 +496,20 @@ class AllowedDirectoryTest(unittest.TestCase):
         """A checkout at /opt/kasapanel is not ours to give away."""
         path = self.make('kasapanel')
         with mock.patch('os.chown') as chown:
-            self.assertFalse(privsep.own_directory_if_allowed(
-                path, 1234, 5678, {self.make('elsewhere')}))
+            self.assertFalse(
+                privsep.own_directory_if_allowed(
+                    path, 1234, 5678, {self.make('elsewhere')}
+                )
+            )
         chown.assert_not_called()
 
     def test_an_unlisted_directory_is_left_alone(self):
         """It could be /etc, and /etc is not ours either."""
         path = self.make('etc')
         with mock.patch('os.chown') as chown:
-            self.assertFalse(privsep.own_directory_if_allowed(
-                path, 1234, 5678, set()))
+            self.assertFalse(
+                privsep.own_directory_if_allowed(path, 1234, 5678, set())
+            )
         chown.assert_not_called()
 
     def test_paths_are_compared_after_resolving(self):
@@ -493,15 +518,17 @@ class AllowedDirectoryTest(unittest.TestCase):
         link = os.path.join(self.tmp, 'link')
         os.symlink(path, link)
         with mock.patch('os.chown'):
-            self.assertTrue(privsep.own_directory_if_allowed(
-                link, 1234, 5678, {path + '/'}))
+            self.assertTrue(
+                privsep.own_directory_if_allowed(link, 1234, 5678, {path + '/'})
+            )
 
     def test_a_missing_directory_is_not_taken(self):
         """Nothing there is nothing to hand over."""
         absent = os.path.join(self.tmp, 'absent')
         with mock.patch('os.chown') as chown:
-            self.assertFalse(privsep.own_directory_if_allowed(
-                absent, 1234, 5678, {absent}))
+            self.assertFalse(
+                privsep.own_directory_if_allowed(absent, 1234, 5678, {absent})
+            )
         chown.assert_not_called()
 
     def test_a_file_is_not_a_directory(self):
@@ -510,8 +537,9 @@ class AllowedDirectoryTest(unittest.TestCase):
         with open(path, 'w', encoding='utf-8') as handle:
             handle.write('')
         with mock.patch('os.chown') as chown:
-            self.assertFalse(privsep.own_directory_if_allowed(
-                path, 1234, 5678, {path}))
+            self.assertFalse(
+                privsep.own_directory_if_allowed(path, 1234, 5678, {path})
+            )
         chown.assert_not_called()
 
 
@@ -529,8 +557,7 @@ class PrivilegedAccountTest(unittest.TestCase):
 
     def test_an_account_in_the_root_group_is_refused(self):
         """A gid of 0 is privileged too."""
-        with mock.patch('pwd.getpwnam',
-                        return_value=account('odd', 1000, 0)):
+        with mock.patch('pwd.getpwnam', return_value=account('odd', 1000, 0)):
             with self.assertRaises(privsep.PrivilegeError):
                 privsep.resolve_user('odd')
 
@@ -548,16 +575,17 @@ class CapabilityTest(unittest.TestCase):
 
     def test_a_full_set_is_not_missing_anything(self):
         """Holding everything needed reports nothing."""
-        every = sum(1 << bit
-                    for bit, _ in privsep.NEEDED_CAPABILITIES.values())
-        with mock.patch.object(privsep, 'effective_capabilities',
-                               return_value=every):
+        every = sum(1 << bit for bit, _ in privsep.NEEDED_CAPABILITIES.values())
+        with mock.patch.object(
+            privsep, 'effective_capabilities', return_value=every
+        ):
             self.assertEqual(privsep.missing_capabilities(), [])
 
     def test_a_missing_capability_is_named(self):
         """Each absent capability is reported by name."""
-        with mock.patch.object(privsep, 'effective_capabilities',
-                               return_value=0):
+        with mock.patch.object(
+            privsep, 'effective_capabilities', return_value=0
+        ):
             missing = privsep.missing_capabilities()
         self.assertIn('CAP_SETUID', missing)
         self.assertIn('CAP_CHOWN', missing)
@@ -575,9 +603,12 @@ class CapabilityTest(unittest.TestCase):
 
     def test_the_check_refuses_before_anything_is_chowned(self):
         """The point of checking first is to change nothing."""
-        with mock.patch('os.getuid', return_value=0), \
-                mock.patch.object(privsep, 'effective_capabilities',
-                                  return_value=0):
+        with (
+            mock.patch('os.getuid', return_value=0),
+            mock.patch.object(
+                privsep, 'effective_capabilities', return_value=0
+            ),
+        ):
             with mock.patch('os.chown') as chown:
                 with self.assertRaises(privsep.PrivilegeError) as caught:
                     privsep.check_can_drop()
@@ -591,13 +622,17 @@ class CapabilityTest(unittest.TestCase):
 
     def test_the_drop_failure_explains_itself(self):
         """A bare EPERM is not a useful thing to print."""
-        with mock.patch('os.getuid', return_value=0), \
-                mock.patch('os.initgroups'), \
-                mock.patch('os.setgid'), \
-                mock.patch('os.setuid',
-                           side_effect=PermissionError(1, 'not permitted')), \
-                mock.patch.object(privsep, 'effective_capabilities',
-                                  return_value=0):
+        with (
+            mock.patch('os.getuid', return_value=0),
+            mock.patch('os.initgroups'),
+            mock.patch('os.setgid'),
+            mock.patch(
+                'os.setuid', side_effect=PermissionError(1, 'not permitted')
+            ),
+            mock.patch.object(
+                privsep, 'effective_capabilities', return_value=0
+            ),
+        ):
             with self.assertRaises(privsep.PrivilegeError) as caught:
                 privsep.drop_privileges(account('www-data', 33, 33))
         message = str(caught.exception)
@@ -625,10 +660,12 @@ class RefusalAdviceTest(unittest.TestCase):
         """
         report = dict(self.base)
         report.update(overrides)
-        with mock.patch.object(privsep, 'missing_capabilities',
-                               return_value=missing), \
-                mock.patch.object(privsep, 'privilege_report',
-                                  return_value=report):
+        with (
+            mock.patch.object(
+                privsep, 'missing_capabilities', return_value=missing
+            ),
+            mock.patch.object(privsep, 'privilege_report', return_value=report),
+        ):
             return privsep.refusal_advice(self.account)
 
     def test_a_missing_capability_points_at_the_bounding_set(self):
@@ -657,10 +694,12 @@ class RefusalAdviceTest(unittest.TestCase):
 
     def test_the_state_is_always_included(self):
         """Every message carries the evidence behind it."""
-        for advice in (self.advise(['CAP_SETUID']),
-                       self.advise([], user_namespace=True),
-                       self.advise([], seccomp='2'),
-                       self.advise([])):
+        for advice in (
+            self.advise(['CAP_SETUID']),
+            self.advise([], user_namespace=True),
+            self.advise([], seccomp='2'),
+            self.advise([]),
+        ):
             self.assertIn('CapEff=', advice)
             self.assertIn('userns=', advice)
 
@@ -788,16 +827,20 @@ class AccessAsTest(unittest.TestCase):
         path = self.make('privkey.pem', 0o600)
         result = subprocess.run(
             ['setfacl', '-m', f'user:{self.other.pw_name}:r', path],
-            check=False, capture_output=True)
+            check=False,
+            capture_output=True,
+        )
         if result.returncode != 0:
             self.skipTest('this filesystem does not support ACLs')
         self.assertFalse(
             # pylint: disable=protected-access
             privsep._mode_access(path, os.R_OK, self.other),
-            'the mode bits alone should not explain this')
-        self.assertTrue(privsep.readable_by(path, self.other),
-                        'but the account can read it, so the check must '
-                        'say so')
+            'the mode bits alone should not explain this',
+        )
+        self.assertTrue(
+            privsep.readable_by(path, self.other),
+            'but the account can read it, so the check must say so',
+        )
 
     @unittest.skipUnless(os.getuid() == 0, 'needs root to become another')
     def test_directory_writability_is_asked_the_same_way(self):

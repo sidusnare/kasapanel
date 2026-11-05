@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Daemon configuration.
 
 The daemon keeps its own settings in one flat JSON object so the file
@@ -17,7 +17,7 @@ user gets the equivalent paths under their home directory.
 
 import dataclasses
 import os
-from typing import Any, Dict, List, Set
+from typing import Any
 
 from kasapanel import jsonstore
 
@@ -37,8 +37,7 @@ def default_config_path() -> str:
     """
     if os.geteuid() == 0:
         return os.path.join(SYSTEM_CONFIG_DIR, 'config.json')
-    base = os.environ.get(
-        'XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+    base = os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
     return os.path.join(base, 'kasapanel', 'config.json')
 
 
@@ -51,7 +50,8 @@ def default_state_dir() -> str:
     if os.geteuid() == 0:
         return SYSTEM_STATE_DIR
     base = os.environ.get(
-        'XDG_STATE_HOME', os.path.expanduser('~/.local/state'))
+        'XDG_STATE_HOME', os.path.expanduser('~/.local/state')
+    )
     return os.path.join(base, 'kasapanel')
 
 
@@ -100,8 +100,8 @@ class PanelConfig:
     daemon_user: str = ''
     pam_service: str = 'login'
     pam_rate_limit_seconds: float = 1.0
-    allowed_users: List[str] = dataclasses.field(default_factory=list)
-    allowed_groups: List[str] = dataclasses.field(default_factory=list)
+    allowed_users: list[str] = dataclasses.field(default_factory=list)
+    allowed_groups: list[str] = dataclasses.field(default_factory=list)
     session_minutes: int = 720
     max_login_failures: int = 5
     lockout_seconds: int = 300
@@ -139,18 +139,17 @@ class PanelConfig:
 
     def resolved_certificate(self) -> str:
         """Returns the certificate path, filling in the default."""
-        return self.tls_certificate or os.path.join(
-            self.tls_dir, 'panel.crt')
+        return self.tls_certificate or os.path.join(self.tls_dir, 'panel.crt')
 
     def resolved_key(self) -> str:
         """Returns the private key path, filling in the default."""
         return self.tls_key or os.path.join(self.tls_dir, 'panel.key')
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Returns the configuration as a JSON friendly dictionary."""
         return dataclasses.asdict(self)
 
-    def redacted(self) -> Dict[str, Any]:
+    def redacted(self) -> dict[str, Any]:
         """Returns the configuration with secrets replaced by a flag.
 
         Returns:
@@ -164,7 +163,7 @@ class PanelConfig:
         return document
 
 
-def _field_kinds() -> Dict[str, str]:
+def _field_kinds() -> dict[str, str]:
     """Maps each configuration field to a simple value kind.
 
     The kind is taken from the default value rather than the annotation
@@ -228,7 +227,7 @@ def _coerce(name: str, value: Any, current: Any) -> Any:
     return current
 
 
-def from_dict(document: Dict[str, Any]) -> PanelConfig:
+def from_dict(document: dict[str, Any]) -> PanelConfig:
     """Builds a configuration from a decoded JSON document.
 
     Unknown keys are ignored and missing keys keep their default, so an
@@ -243,8 +242,11 @@ def from_dict(document: Dict[str, Any]) -> PanelConfig:
     config = PanelConfig()
     for name in _FIELD_TYPES:
         if name in document:
-            setattr(config, name,
-                    _coerce(name, document[name], getattr(config, name)))
+            setattr(
+                config,
+                name,
+                _coerce(name, document[name], getattr(config, name)),
+            )
     config.version = CONFIG_VERSION
     return config
 
@@ -259,9 +261,10 @@ class ConfigStore:
             path: Configuration file path; empty selects the default.
         """
         self._document = jsonstore.JsonDocument(
-            path or default_config_path(), PanelConfig().to_dict())
+            path or default_config_path(), PanelConfig().to_dict()
+        )
         self._config = PanelConfig()
-        self._explicit: Set[str] = set()
+        self._explicit: set[str] = set()
 
     @property
     def path(self) -> str:
@@ -320,7 +323,7 @@ class ConfigStore:
         self._document.replace(config.to_dict())
         return self._config
 
-    def update(self, changes: Dict[str, Any]) -> PanelConfig:
+    def update(self, changes: dict[str, Any]) -> PanelConfig:
         """Applies a partial update and saves the result.
 
         Args:

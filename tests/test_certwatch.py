@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.logsink` and :mod:`kasapanel.certwatch`."""
 
 import datetime
@@ -17,18 +17,16 @@ import subprocess
 import tempfile
 import threading
 import unittest
-
 from typing import Any
 
-from kasapanel import activity
-from kasapanel import certwatch
-from kasapanel import logsink
+from kasapanel import activity, certwatch, logsink
 
 UTC = datetime.timezone.utc
 
 
-def make_certificate(directory: str, name: str, common_name: str,
-                     days: int = 30) -> str:
+def make_certificate(
+    directory: str, name: str, common_name: str, days: int = 30
+) -> str:
     """Writes a self-signed certificate and key.
 
     Args:
@@ -43,10 +41,25 @@ def make_certificate(directory: str, name: str, common_name: str,
     certificate = os.path.join(directory, f'{name}.crt')
     key = os.path.join(directory, f'{name}.key')
     subprocess.run(
-        ['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
-         '-keyout', key, '-out', certificate, '-days', str(days),
-         '-subj', f'/CN={common_name}'],
-        check=True, capture_output=True)
+        [
+            'openssl',
+            'req',
+            '-x509',
+            '-newkey',
+            'rsa:2048',
+            '-nodes',
+            '-keyout',
+            key,
+            '-out',
+            certificate,
+            '-days',
+            str(days),
+            '-subj',
+            f'/CN={common_name}',
+        ],
+        check=True,
+        capture_output=True,
+    )
     return certificate
 
 
@@ -146,8 +159,9 @@ class LogSinkTest(unittest.TestCase):
         handler = logsink.ReopeningFileHandler(self.path)
         handler.setFormatter(logging.Formatter('%(message)s'))
         handler.path = os.path.join(self.tmp, 'no', 'such\x00path')
-        record = logging.LogRecord('t', logging.INFO, __file__, 1,
-                                   'still alive', None, None)
+        record = logging.LogRecord(
+            't', logging.INFO, __file__, 1, 'still alive', None, None
+        )
         handler.emit(record)  # Must not raise.
         handler.close()
 
@@ -170,8 +184,10 @@ class CertificateReadingTest(unittest.TestCase):
     def test_two_certificates_differ(self):
         """Different certificates have different fingerprints."""
         other = make_certificate(self.tmp, 'b', 'second.example')
-        self.assertNotEqual(certwatch.describe(self.certificate)[0],
-                            certwatch.describe(other)[0])
+        self.assertNotEqual(
+            certwatch.describe(self.certificate)[0],
+            certwatch.describe(other)[0],
+        )
 
     def test_missing_and_empty_files_are_errors(self):
         """Unreadable files raise rather than returning nonsense."""
@@ -206,8 +222,10 @@ class CadenceTest(unittest.TestCase):
         """
         now = datetime.datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
         watcher = certwatch.CertificateWatcher(
-            Settings('/nowhere.crt', '/nowhere.key'), ssl.SSLContext(
-                ssl.PROTOCOL_TLS_SERVER), clock=lambda: now)
+            Settings('/nowhere.crt', '/nowhere.key'),
+            ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER),
+            clock=lambda: now,
+        )
         watcher.expires = now + expires_in
         return watcher
 
@@ -222,23 +240,24 @@ class CadenceTest(unittest.TestCase):
         for hours in (47, 24, 1):
             watcher = self.build(datetime.timedelta(hours=hours))
             self.assertTrue(watcher.watching(), f'{hours}h before expiry')
-            self.assertEqual(watcher.interval(),
-                             certwatch.NEAR_EXPIRY_SECONDS)
+            self.assertEqual(watcher.interval(), certwatch.NEAR_EXPIRY_SECONDS)
 
     def test_the_window_opens_at_exactly_48_hours(self):
         """The boundary belongs to the watching side."""
         self.assertTrue(self.build(datetime.timedelta(hours=48)).watching())
         self.assertFalse(
-            self.build(datetime.timedelta(hours=48, seconds=1)).watching())
+            self.build(datetime.timedelta(hours=48, seconds=1)).watching()
+        )
 
     def test_every_minute_once_expired(self):
         """After expiry the daemon is broken, so it looks far more often."""
-        for delta in (datetime.timedelta(seconds=-1),
-                      datetime.timedelta(days=-3)):
+        for delta in (
+            datetime.timedelta(seconds=-1),
+            datetime.timedelta(days=-3),
+        ):
             watcher = self.build(delta)
             self.assertTrue(watcher.watching())
-            self.assertEqual(watcher.interval(),
-                             certwatch.AFTER_EXPIRY_SECONDS)
+            self.assertEqual(watcher.interval(), certwatch.AFTER_EXPIRY_SECONDS)
 
     def test_an_unreadable_expiry_still_gets_checked(self):
         """Not knowing when it expires is not a reason to stop looking."""
@@ -281,18 +300,22 @@ class ReloadTest(unittest.TestCase):
 
         self.server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
         self.server.socket = self.context.wrap_socket(
-            self.server.socket, server_side=True)
+            self.server.socket, server_side=True
+        )
         self.port = self.server.socket.getsockname()[1]
-        self.thread = threading.Thread(target=self.server.serve_forever,
-                                       kwargs={'poll_interval': 0.05},
-                                       daemon=True)
+        self.thread = threading.Thread(
+            target=self.server.serve_forever,
+            kwargs={'poll_interval': 0.05},
+            daemon=True,
+        )
         self.thread.start()
         self.addCleanup(self.server.server_close)
         self.addCleanup(self.server.shutdown)
 
         self.activity = activity.ActivityLog()
         self.watcher = certwatch.CertificateWatcher(
-            Settings(self.live, self.live_key), self.context, self.activity)
+            Settings(self.live, self.live_key), self.context, self.activity
+        )
         self.watcher.adopt(self.live)
 
     def served_fingerprint(self) -> str:
@@ -308,6 +331,7 @@ class ReloadTest(unittest.TestCase):
             with client.wrap_socket(raw) as tls:
                 der = tls.getpeercert(binary_form=True)
         import hashlib  # pylint: disable=import-outside-toplevel
+
         return hashlib.sha256(der).hexdigest()
 
     def renew(self) -> None:
@@ -365,8 +389,7 @@ class ReloadTest(unittest.TestCase):
         self.assertEqual(self.watcher.fingerprint, good)
         self.assertEqual(self.served_fingerprint(), good)
         self.assertIn('not a usable pair', self.watcher.last_error)
-        self.assertEqual(
-            self.activity.records()[0]['level'], 'error')
+        self.assertEqual(self.activity.records()[0]['level'], 'error')
 
     def test_a_half_written_file_is_tolerated(self):
         """A truncated file is a "try again later", not a crash."""

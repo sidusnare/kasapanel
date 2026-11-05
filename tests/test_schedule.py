@@ -2,24 +2,24 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.schedule` and :mod:`kasapanel.actions`."""
 
 import datetime
 import unittest
 
-from kasapanel import actions
-from kasapanel import schedule
+from kasapanel import actions, schedule
 
-
-SCRIPT = '\n'.join((
-    '# kitchen lamp',
-    '0 6 * * mon-fri   on          # weekday mornings',
-    '30 22 * * *       off',
-    '*/15 9-17 * * *   brightness 40',
-    '@daily            refresh',
-))
+SCRIPT = '\n'.join(
+    (
+        '# kitchen lamp',
+        '0 6 * * mon-fri   on          # weekday mornings',
+        '30 22 * * *       off',
+        '*/15 9-17 * * *   brightness 40',
+        '@daily            refresh',
+    )
+)
 
 
 class ParseTest(unittest.TestCase):
@@ -36,17 +36,22 @@ class ParseTest(unittest.TestCase):
 
     def test_problems_are_collected(self):
         """Every bad line is reported, with its line number."""
-        entries, problems = schedule.parse_script('\n'.join((
-            '0 6 * * * on',
-            '99 6 * * * off',
-            '0 6 * * * explode',
-            '0 6 * * *',
-            '@daily brightness 900',
-            '@daily brightness',
-        )))
+        entries, problems = schedule.parse_script(
+            '\n'.join(
+                (
+                    '0 6 * * * on',
+                    '99 6 * * * off',
+                    '0 6 * * * explode',
+                    '0 6 * * *',
+                    '@daily brightness 900',
+                    '@daily brightness',
+                )
+            )
+        )
         self.assertEqual(len(entries), 1)
-        self.assertEqual([problem.line_number for problem in problems],
-                         [2, 3, 4, 5, 6])
+        self.assertEqual(
+            [problem.line_number for problem in problems], [2, 3, 4, 5, 6]
+        )
         self.assertIn('outside', problems[0].message)
         self.assertIn('unknown action', problems[1].message)
 
@@ -76,13 +81,15 @@ class ParseTest(unittest.TestCase):
         spec, values = actions.parse('brightness', ['40'])
         self.assertEqual(spec.name, 'brightness')
         self.assertEqual(values, (40,))
-        for name, arguments in (('brightness', ['0']),
-                                ('brightness', ['x']),
-                                ('brightness', []),
-                                ('on', ['now']),
-                                ('colour', ['10', '20']),
-                                ('led', ['maybe']),
-                                ('temperature', ['200'])):
+        for name, arguments in (
+            ('brightness', ['0']),
+            ('brightness', ['x']),
+            ('brightness', []),
+            ('on', ['now']),
+            ('colour', ['10', '20']),
+            ('led', ['maybe']),
+            ('temperature', ['200']),
+        ):
             with self.assertRaises(actions.ActionError):
                 actions.parse(name, arguments)
 

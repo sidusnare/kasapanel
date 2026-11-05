@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """The device action vocabulary.
 
 An action is the verb half of a schedule line and is also what the
@@ -18,7 +18,8 @@ methods.  That keeps the daemon working across both API generations.
 
 import dataclasses
 import logging
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class ActionError(ValueError):
     """Raised when an action name or its arguments are invalid."""
 
 
-def device_module(device: Any, name: str) -> Optional[Any]:
+def device_module(device: Any, name: str) -> Any | None:
     """Returns a python-kasa module of a device, if it exposes one.
 
     Args:
@@ -54,8 +55,9 @@ def device_module(device: Any, name: str) -> Optional[Any]:
         return None
 
 
-def _int_arg(values: Sequence[str], index: int, name: str,
-             low: int, high: int) -> int:
+def _int_arg(
+    values: Sequence[str], index: int, name: str, low: int, high: int
+) -> int:
     """Parses and range checks one integer argument.
 
     Args:
@@ -81,7 +83,7 @@ def _int_arg(values: Sequence[str], index: int, name: str,
     return number
 
 
-def _parse_none(values: Sequence[str]) -> Tuple[Any, ...]:
+def _parse_none(values: Sequence[str]) -> tuple[Any, ...]:
     """Validates that an action takes no arguments.
 
     Args:
@@ -98,7 +100,7 @@ def _parse_none(values: Sequence[str]) -> Tuple[Any, ...]:
     return ()
 
 
-def _parse_brightness(values: Sequence[str]) -> Tuple[Any, ...]:
+def _parse_brightness(values: Sequence[str]) -> tuple[Any, ...]:
     """Parses the argument of the ``brightness`` action.
 
     Args:
@@ -113,7 +115,7 @@ def _parse_brightness(values: Sequence[str]) -> Tuple[Any, ...]:
     return (_int_arg(values, 0, 'brightness', 1, 100),)
 
 
-def _parse_temperature(values: Sequence[str]) -> Tuple[Any, ...]:
+def _parse_temperature(values: Sequence[str]) -> tuple[Any, ...]:
     """Parses the argument of the ``temperature`` action.
 
     Args:
@@ -128,7 +130,7 @@ def _parse_temperature(values: Sequence[str]) -> Tuple[Any, ...]:
     return (_int_arg(values, 0, 'colour temperature', 1000, 12000),)
 
 
-def _parse_colour(values: Sequence[str]) -> Tuple[Any, ...]:
+def _parse_colour(values: Sequence[str]) -> tuple[Any, ...]:
     """Parses the three arguments of the ``colour`` action.
 
     Args:
@@ -149,7 +151,7 @@ def _parse_colour(values: Sequence[str]) -> Tuple[Any, ...]:
     )
 
 
-def _parse_switch(values: Sequence[str]) -> Tuple[Any, ...]:
+def _parse_switch(values: Sequence[str]) -> tuple[Any, ...]:
     """Parses an ``on`` or ``off`` argument.
 
     Args:
@@ -166,7 +168,7 @@ def _parse_switch(values: Sequence[str]) -> Tuple[Any, ...]:
     return (values[0].lower() == 'on',)
 
 
-async def _run_on(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_on(device: Any, values: tuple[Any, ...]) -> str:
     """Turns the device on.
 
     Args:
@@ -181,7 +183,7 @@ async def _run_on(device: Any, values: Tuple[Any, ...]) -> str:
     return 'turned on'
 
 
-async def _run_off(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_off(device: Any, values: tuple[Any, ...]) -> str:
     """Turns the device off.
 
     Args:
@@ -196,7 +198,7 @@ async def _run_off(device: Any, values: Tuple[Any, ...]) -> str:
     return 'turned off'
 
 
-async def _run_toggle(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_toggle(device: Any, values: tuple[Any, ...]) -> str:
     """Inverts the current on/off state of the device.
 
     Args:
@@ -214,7 +216,7 @@ async def _run_toggle(device: Any, values: Tuple[Any, ...]) -> str:
     return 'toggled on'
 
 
-async def _run_brightness(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_brightness(device: Any, values: tuple[Any, ...]) -> str:
     """Sets the brightness of a dimmable device.
 
     Args:
@@ -237,7 +239,7 @@ async def _run_brightness(device: Any, values: Tuple[Any, ...]) -> str:
     return f'brightness set to {values[0]}%'
 
 
-async def _run_temperature(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_temperature(device: Any, values: tuple[Any, ...]) -> str:
     """Sets the colour temperature of a tunable white device.
 
     Args:
@@ -260,7 +262,7 @@ async def _run_temperature(device: Any, values: Tuple[Any, ...]) -> str:
     return f'colour temperature set to {values[0]}K'
 
 
-async def _run_colour(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_colour(device: Any, values: tuple[Any, ...]) -> str:
     """Sets hue, saturation and value on a colour device.
 
     Args:
@@ -283,7 +285,7 @@ async def _run_colour(device: Any, values: Tuple[Any, ...]) -> str:
     return f'colour set to {values[0]}/{values[1]}/{values[2]}'
 
 
-async def _run_led(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_led(device: Any, values: tuple[Any, ...]) -> str:
     """Turns the status LED of the device on or off.
 
     Args:
@@ -306,7 +308,7 @@ async def _run_led(device: Any, values: Tuple[Any, ...]) -> str:
     return 'status LED ' + ('on' if values[0] else 'off')
 
 
-async def _run_refresh(device: Any, values: Tuple[Any, ...]) -> str:
+async def _run_refresh(device: Any, values: tuple[Any, ...]) -> str:
     """Polls the device without changing anything.
 
     Args:
@@ -336,37 +338,63 @@ class ActionSpec:
     name: str
     usage: str
     summary: str
-    parse: Callable[[Sequence[str]], Tuple[Any, ...]]
-    run: Callable[[Any, Tuple[Any, ...]], Any]
+    parse: Callable[[Sequence[str]], tuple[Any, ...]]
+    run: Callable[[Any, tuple[Any, ...]], Any]
 
 
-ACTIONS: Dict[str, ActionSpec] = {
-    spec.name: spec for spec in (
-        ActionSpec('on', 'on', 'Switch the device on.',
-                   _parse_none, _run_on),
-        ActionSpec('off', 'off', 'Switch the device off.',
-                   _parse_none, _run_off),
-        ActionSpec('toggle', 'toggle', 'Invert the current state.',
-                   _parse_none, _run_toggle),
-        ActionSpec('brightness', 'brightness <1-100>',
-                   'Set brightness, in percent.',
-                   _parse_brightness, _run_brightness),
-        ActionSpec('temperature', 'temperature <2500-6500>',
-                   'Set white colour temperature, in kelvin.',
-                   _parse_temperature, _run_temperature),
-        ActionSpec('colour', 'colour <hue> <saturation> <value>',
-                   'Set hue 0-360, saturation 0-100, value 1-100.',
-                   _parse_colour, _run_colour),
-        ActionSpec('led', 'led <on|off>',
-                   'Switch the small status LED on the device.',
-                   _parse_switch, _run_led),
-        ActionSpec('refresh', 'refresh',
-                   'Poll the device and record its state.',
-                   _parse_none, _run_refresh),
+ACTIONS: dict[str, ActionSpec] = {
+    spec.name: spec
+    for spec in (
+        ActionSpec('on', 'on', 'Switch the device on.', _parse_none, _run_on),
+        ActionSpec(
+            'off', 'off', 'Switch the device off.', _parse_none, _run_off
+        ),
+        ActionSpec(
+            'toggle',
+            'toggle',
+            'Invert the current state.',
+            _parse_none,
+            _run_toggle,
+        ),
+        ActionSpec(
+            'brightness',
+            'brightness <1-100>',
+            'Set brightness, in percent.',
+            _parse_brightness,
+            _run_brightness,
+        ),
+        ActionSpec(
+            'temperature',
+            'temperature <2500-6500>',
+            'Set white colour temperature, in kelvin.',
+            _parse_temperature,
+            _run_temperature,
+        ),
+        ActionSpec(
+            'colour',
+            'colour <hue> <saturation> <value>',
+            'Set hue 0-360, saturation 0-100, value 1-100.',
+            _parse_colour,
+            _run_colour,
+        ),
+        ActionSpec(
+            'led',
+            'led <on|off>',
+            'Switch the small status LED on the device.',
+            _parse_switch,
+            _run_led,
+        ),
+        ActionSpec(
+            'refresh',
+            'refresh',
+            'Poll the device and record its state.',
+            _parse_none,
+            _run_refresh,
+        ),
     )
 }
 
-ALIASES: Dict[str, str] = {
+ALIASES: dict[str, str] = {
     'color': 'colour',
     'color_temp': 'temperature',
     'colour_temp': 'temperature',
@@ -398,8 +426,9 @@ def resolve(name: str) -> ActionSpec:
     return spec
 
 
-def parse(name: str, values: Sequence[str]) -> Tuple[ActionSpec,
-                                                     Tuple[Any, ...]]:
+def parse(
+    name: str, values: Sequence[str]
+) -> tuple[ActionSpec, tuple[Any, ...]]:
     """Resolves an action and validates its arguments.
 
     Args:
@@ -440,7 +469,7 @@ async def execute(device: Any, name: str, values: Sequence[str]) -> str:
     return result
 
 
-def catalogue() -> List[Dict[str, str]]:
+def catalogue() -> list[dict[str, str]]:
     """Returns the action vocabulary for display in the help panel.
 
     Returns:

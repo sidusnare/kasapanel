@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
+#
+# Licensing for files that cannot carry an inline header, as REUSE
+# provides for.  Everything else in the tree declares its own.
+
+version = 1
+SPDX-PackageName = "kasapanel"
+SPDX-PackageSupplier = "Kasa Panel contributors"
+SPDX-PackageDownloadLocation = "NOASSERTION"
+
+# JSON has no comment syntax.
+[[annotations]]
+path = [
+    "package.json",
+    "package-lock.json",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/test/fixtures/*.json",
+]
+SPDX-FileCopyrightText = "2026 Kasa Panel contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# The contributors' own prose, kept verbatim: preamble.txt is embedded
+# in AI.prompt.md word for word, so it carries no header of its own.
+# These are not model output and so name no model as a contributor.
+# preamble.txt quotes an SPDX tag as part of its text, which is why its
+# licensing is declared here rather than read out of the file.
+[[annotations]]
+path = [
+    "AI.policy.txt",
+    "preamble.txt",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Kasa Panel contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# These two quote an SPDX tag as data -- a banner the build writes into
+# the bundle, and a test that asserts the headers are present -- which
+# the header extractor reads as a malformed licence expression and then
+# skips the whole file.  Their real headers say exactly this.
+[[annotations]]
+path = [
+    "frontend/build.mjs",
+    "tests/test_prompt.py",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Kasa Panel contributors"
+SPDX-FileContributor = "Claude Opus 5 (AI-generated)"
+SPDX-License-Identifier = "GPL-3.0-or-later"

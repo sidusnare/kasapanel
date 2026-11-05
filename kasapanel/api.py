@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """The JSON API.
 
 This module holds the routing table and the handlers.  It knows nothing
@@ -20,16 +20,20 @@ was handed out at sign in, in the ``X-Kasa-CSRF`` header.
 import dataclasses
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional, Pattern, Tuple
+from collections.abc import Callable
+from re import Pattern
+from typing import Any, Optional
 
-from kasapanel import actions
-from kasapanel import auth
-from kasapanel import devicestore
-from kasapanel import jsonstore
-from kasapanel import kasabridge
+from kasapanel import (
+    actions,
+    auth,
+    devicestore,
+    jsonstore,
+    kasabridge,
+    userstore,
+)
 from kasapanel import schedule as schedule_lib
 from kasapanel import snooze as snooze_lib
-from kasapanel import userstore
 
 _LOG = logging.getLogger(__name__)
 
@@ -55,9 +59,9 @@ class Request:
 
     method: str
     path: str
-    query: Dict[str, List[str]] = dataclasses.field(default_factory=dict)
-    body: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    cookies: Dict[str, str] = dataclasses.field(default_factory=dict)
+    query: dict[str, list[str]] = dataclasses.field(default_factory=dict)
+    body: dict[str, Any] = dataclasses.field(default_factory=dict)
+    cookies: dict[str, str] = dataclasses.field(default_factory=dict)
     headers: Callable[[str, str], str] = lambda name, default='': default
     remote: str = ''
     user_agent: str = ''
@@ -120,8 +124,8 @@ class Response:
     """
 
     status: int = 200
-    payload: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    cookies: List[str] = dataclasses.field(default_factory=list)
+    payload: dict[str, Any] = dataclasses.field(default_factory=dict)
+    cookies: list[str] = dataclasses.field(default_factory=list)
 
 
 def error(status: int, message: str, **extra: Any) -> Response:
@@ -140,7 +144,7 @@ def error(status: int, message: str, **extra: Any) -> Response:
     return Response(status=status, payload=payload)
 
 
-def session_token(request: 'Request') -> Tuple[str, str]:
+def session_token(request: 'Request') -> tuple[str, str]:
     """Finds the session token the browser sent, and how it sent it.
 
     The cookie is the normal carrier, but a browser that refuses to keep
@@ -165,8 +169,9 @@ def session_token(request: 'Request') -> Tuple[str, str]:
     return '', 'none'
 
 
-def _explain_401(app: Any, request: 'Request', token: str,
-                 carrier: str) -> None:
+def _explain_401(
+    app: Any, request: 'Request', token: str, carrier: str
+) -> None:
     """Logs why a request was refused, so a bounce can be diagnosed.
 
     A user thrown back to the sign in page sees nothing useful, and the
@@ -190,15 +195,20 @@ def _explain_401(app: Any, request: 'Request', token: str,
     _LOG.warning(
         'refused %s %s: %s (carrier=%s, cookies=%s, sessions=%d, '
         'daemon started %s, remote=%s%s, agent=%r)',
-        request.method, request.path, why, carrier, ','.join(cookie_names),
+        request.method,
+        request.path,
+        why,
+        carrier,
+        ','.join(cookie_names),
         len(app.sessions.active()),
         app.started_at.isoformat(timespec='seconds'),
         request.remote,
         f' via proxy {forwarded}' if forwarded else '',
-        request.user_agent[:80])
+        request.user_agent[:80],
+    )
 
 
-def _certificate(app: Any) -> Dict[str, Any]:
+def _certificate(app: Any) -> dict[str, Any]:
     """Describes the certificate the server is serving.
 
     Args:
@@ -208,6 +218,7 @@ def _certificate(app: Any) -> Dict[str, Any]:
         The certificate summary, with what the watcher knows added.
     """
     from kasapanel import certwatch  # pylint: disable=import-outside-toplevel
+
     summary = certwatch.summarise(app.settings.resolved_certificate())
     watcher = getattr(app, 'certwatch', None)
     if watcher is None:
@@ -224,7 +235,7 @@ def _certificate(app: Any) -> Dict[str, Any]:
     return summary
 
 
-def _daemon_user(app: Any) -> Dict[str, Any]:
+def _daemon_user(app: Any) -> dict[str, Any]:
     """Describes the account the daemon is running as.
 
     Args:
@@ -285,8 +296,13 @@ def _canonical_action(name: str) -> str:
         return ''
 
 
-def lock_guard(app: Any, request: 'Request', session: Optional[auth.Session],
-               device_id: str, what: str) -> Optional['Response']:
+def lock_guard(
+    app: Any,
+    request: 'Request',
+    session: auth.Session | None,
+    device_id: str,
+    what: str,
+) -> Optional['Response']:
     """Refuses a change to a locked device until it is confirmed.
 
     The dialog the browser shows is not the lock; this is.  A request
@@ -316,8 +332,12 @@ def lock_guard(app: Any, request: 'Request', session: Optional[auth.Session],
         return None
     secure = app.devices.is_secure_locked(device_id)
     if not request.flag('confirm'):
-        return error(409, f'{record.display_name} is locked: confirm '
-                          f'{what}.', locked=True, needs_password=secure)
+        return error(
+            409,
+            f'{record.display_name} is locked: confirm {what}.',
+            locked=True,
+            needs_password=secure,
+        )
     if not secure:
         return None
     username = session.username if session else ''
@@ -326,8 +346,11 @@ def lock_guard(app: Any, request: 'Request', session: Optional[auth.Session],
     except auth.AuthError as err:
         app.activity.add(
             f'Refused {what} on {record.display_name}: {err}',
-            level='warning', source=username or 'dashboard',
-            device_id=device_id, device_name=record.display_name)
+            level='warning',
+            source=username or 'dashboard',
+            device_id=device_id,
+            device_name=record.display_name,
+        )
         # Not 401: the session is perfectly good, it is this one change
         # that has not been confirmed, and a 401 would send the panel
         # back to the sign-in page over a mistyped password.
@@ -335,7 +358,7 @@ def lock_guard(app: Any, request: 'Request', session: Optional[auth.Session],
     return None
 
 
-def _device_payload(app: Any, device_id: str) -> Dict[str, Any]:
+def _device_payload(app: Any, device_id: str) -> dict[str, Any]:
     """Builds the full view of one device.
 
     Args:
@@ -354,8 +377,12 @@ def _device_payload(app: Any, device_id: str) -> Dict[str, Any]:
     return view
 
 
-def sign_in(app: Any, request: Request, params: Tuple[str, ...],
-            session: Optional[auth.Session]) -> Response:
+def sign_in(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Signs a user in with PAM.
 
     Args:
@@ -370,13 +397,18 @@ def sign_in(app: Any, request: Request, params: Tuple[str, ...],
     del params, session
     try:
         username = app.authenticator.authenticate(
-            request.text('username'), request.text('password'))
+            request.text('username'), request.text('password')
+        )
     except auth.AuthError as err:
-        app.activity.add(f'Sign in refused: {err}', level='warning',
-                         source=request.text('username') or 'unknown')
+        app.activity.add(
+            f'Sign in refused: {err}',
+            level='warning',
+            source=request.text('username') or 'unknown',
+        )
         return error(401, str(err))
     session = app.sessions.create(
-        username, remote=request.remote, user_agent=request.user_agent)
+        username, remote=request.remote, user_agent=request.user_agent
+    )
     app.activity.add(f'{username} signed in', source=username)
     seconds = int(app.settings.session_minutes) * 60
     return Response(
@@ -390,11 +422,16 @@ def sign_in(app: Any, request: Request, params: Tuple[str, ...],
             'session_token': session.token,
             'groups': auth.user_groups(username),
         },
-        cookies=[_session_cookie(session.token, seconds)])
+        cookies=[_session_cookie(session.token, seconds)],
+    )
 
 
-def sign_out(app: Any, request: Request, params: Tuple[str, ...],
-             session: Optional[auth.Session]) -> Response:
+def sign_out(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Signs the current user out.
 
     Args:
@@ -409,15 +446,23 @@ def sign_out(app: Any, request: Request, params: Tuple[str, ...],
     del params
     token, _ = session_token(request)
     if session is not None:
-        app.activity.add(f'{session.username} signed out',
-                         source=session.username)
+        app.activity.add(
+            f'{session.username} signed out', source=session.username
+        )
     app.sessions.destroy(token)
-    return Response(status=200, payload={'signed_out': True},
-                    cookies=[_session_cookie('', 0)])
+    return Response(
+        status=200,
+        payload={'signed_out': True},
+        cookies=[_session_cookie('', 0)],
+    )
 
 
-def whoami(app: Any, request: Request, params: Tuple[str, ...],
-           session: Optional[auth.Session]) -> Response:
+def whoami(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Describes the current session.
 
     Args:
@@ -431,23 +476,31 @@ def whoami(app: Any, request: Request, params: Tuple[str, ...],
     """
     del params
     if session is None:
-        return Response(payload={
-            'signed_in': False,
-            'pam_available': auth.PAM_AVAILABLE,
-            'pam_error': auth.pam_reason(),
-        })
-    return Response(payload={
-        'signed_in': True,
-        'username': session.username,
-        'csrf_token': session.csrf_token,
-        'auth_method': session_token(request)[1],
-        'groups': auth.user_groups(session.username),
-        'active_sessions': len(app.sessions.active()),
-    })
+        return Response(
+            payload={
+                'signed_in': False,
+                'pam_available': auth.PAM_AVAILABLE,
+                'pam_error': auth.pam_reason(),
+            }
+        )
+    return Response(
+        payload={
+            'signed_in': True,
+            'username': session.username,
+            'csrf_token': session.csrf_token,
+            'auth_method': session_token(request)[1],
+            'groups': auth.user_groups(session.username),
+            'active_sessions': len(app.sessions.active()),
+        }
+    )
 
 
-def dashboard(app: Any, request: Request, params: Tuple[str, ...],
-              session: Optional[auth.Session]) -> Response:
+def dashboard(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Returns the dashboard payload.
 
     Args:
@@ -463,8 +516,12 @@ def dashboard(app: Any, request: Request, params: Tuple[str, ...],
     return Response(payload=app.dashboard())
 
 
-def list_devices(app: Any, request: Request, params: Tuple[str, ...],
-                 session: Optional[auth.Session]) -> Response:
+def list_devices(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Lists the device inventory.
 
     Args:
@@ -477,14 +534,21 @@ def list_devices(app: Any, request: Request, params: Tuple[str, ...],
         The inventory records with their cached state.
     """
     del request, params, session
-    return Response(payload={
-        'devices': [app.device_view(record)
-                    for record in app.devices.records()],
-    })
+    return Response(
+        payload={
+            'devices': [
+                app.device_view(record) for record in app.devices.records()
+            ],
+        }
+    )
 
 
-def add_device(app: Any, request: Request, params: Tuple[str, ...],
-               session: Optional[auth.Session]) -> Response:
+def add_device(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Adds a device by host name or address.
 
     The host is contacted first so the model and MAC address can be
@@ -504,7 +568,7 @@ def add_device(app: Any, request: Request, params: Tuple[str, ...],
     host = request.text('host').strip()
     if not host:
         return error(400, 'enter a host name or IP address')
-    info: Dict[str, Any] = {}
+    info: dict[str, Any] = {}
     warning = ''
     try:
         info = app.bridge.probe(host)
@@ -512,24 +576,37 @@ def add_device(app: Any, request: Request, params: Tuple[str, ...],
         warning = str(err)
     try:
         record = app.devices.add(
-            host, alias=request.text('alias').strip(), source='manual',
-            info=info)
+            host,
+            alias=request.text('alias').strip(),
+            source='manual',
+            info=info,
+        )
     except devicestore.DeviceError as err:
         return error(400, str(err))
     if info:
         app.store_state(record, info)
     actor = session.username if session else 'dashboard'
-    app.activity.add(f'Added {record.display_name} ({host})', source=actor,
-                     device_id=record.device_id,
-                     device_name=record.display_name)
-    return Response(status=201, payload={
-        'device': app.device_view(record),
-        'warning': warning,
-    })
+    app.activity.add(
+        f'Added {record.display_name} ({host})',
+        source=actor,
+        device_id=record.device_id,
+        device_name=record.display_name,
+    )
+    return Response(
+        status=201,
+        payload={
+            'device': app.device_view(record),
+            'warning': warning,
+        },
+    )
 
 
-def get_device(app: Any, request: Request, params: Tuple[str, ...],
-               session: Optional[auth.Session]) -> Response:
+def get_device(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Returns one device with its schedule and activity.
 
     Args:
@@ -545,8 +622,12 @@ def get_device(app: Any, request: Request, params: Tuple[str, ...],
     return Response(payload={'device': _device_payload(app, params[0])})
 
 
-def update_device(app: Any, request: Request, params: Tuple[str, ...],
-                  session: Optional[auth.Session]) -> Response:
+def update_device(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Updates the editable fields of a device.
 
     The body may carry ``alias``, ``host``, ``enabled``, ``notes`` and
@@ -568,27 +649,35 @@ def update_device(app: Any, request: Request, params: Tuple[str, ...],
     # unasked; locking one is not, since nobody needs protecting from
     # more care being taken.
     if 'locked' in request.body and not request.flag('locked', True):
-        refused = lock_guard(app, request, session, device_id,
-                             'unlocking it')
+        refused = lock_guard(app, request, session, device_id, 'unlocking it')
         if refused is not None:
             return refused
-    changes = {name: request.body[name]
-               for name in ('alias', 'host', 'enabled', 'notes')
-               if name in request.body}
+    changes = {
+        name: request.body[name]
+        for name in ('alias', 'host', 'enabled', 'notes')
+        if name in request.body
+    }
     record = app.devices.update(device_id, changes)
     if 'host' in changes:
         app.bridge.forget(record.host)
     if 'locked' in request.body:
         app.set_locked(device_id, request.flag('locked', True), actor=actor)
     if changes:
-        app.activity.add(f'Updated {record.display_name}', source=actor,
-                         device_id=record.device_id,
-                         device_name=record.display_name)
+        app.activity.add(
+            f'Updated {record.display_name}',
+            source=actor,
+            device_id=record.device_id,
+            device_name=record.display_name,
+        )
     return Response(payload={'device': app.device_view(record)})
 
 
-def delete_device(app: Any, request: Request, params: Tuple[str, ...],
-                  session: Optional[auth.Session]) -> Response:
+def delete_device(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Removes a device from the inventory.
 
     Args:
@@ -608,8 +697,12 @@ def delete_device(app: Any, request: Request, params: Tuple[str, ...],
     return Response(payload={'removed': record.device_id})
 
 
-def device_action(app: Any, request: Request, params: Tuple[str, ...],
-                  session: Optional[auth.Session]) -> Response:
+def device_action(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Runs one action against a device.
 
     Args:
@@ -628,8 +721,9 @@ def device_action(app: Any, request: Request, params: Tuple[str, ...],
     arguments = [str(item) for item in raw_arguments]
     actor = session.username if session else 'dashboard'
     if _canonical_action(action) in GUARDED_ACTIONS:
-        refused = lock_guard(app, request, session, params[0],
-                             f'switching it ({action})')
+        refused = lock_guard(
+            app, request, session, params[0], f'switching it ({action})'
+        )
         if refused is not None:
             return refused
     try:
@@ -638,14 +732,20 @@ def device_action(app: Any, request: Request, params: Tuple[str, ...],
         return error(400, str(err))
     except kasabridge.BridgeError as err:
         return error(502, str(err))
-    return Response(payload={
-        'result': result,
-        'device': app.device_view(app.devices.get(params[0])),
-    })
+    return Response(
+        payload={
+            'result': result,
+            'device': app.device_view(app.devices.get(params[0])),
+        }
+    )
 
 
-def refresh_device(app: Any, request: Request, params: Tuple[str, ...],
-                   session: Optional[auth.Session]) -> Response:
+def refresh_device(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Polls one device immediately.
 
     Args:
@@ -659,13 +759,19 @@ def refresh_device(app: Any, request: Request, params: Tuple[str, ...],
     """
     del request, session
     app.refresh(params[0])
-    return Response(payload={
-        'device': app.device_view(app.devices.get(params[0])),
-    })
+    return Response(
+        payload={
+            'device': app.device_view(app.devices.get(params[0])),
+        }
+    )
 
 
-def get_schedule(app: Any, request: Request, params: Tuple[str, ...],
-                 session: Optional[auth.Session]) -> Response:
+def get_schedule(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Returns the schedule script of a device.
 
     Args:
@@ -682,16 +788,22 @@ def get_schedule(app: Any, request: Request, params: Tuple[str, ...],
     app.devices.get(device_id)
     document = app.devices.device_document(device_id)
     script = document.get('schedule', '')
-    return Response(payload={
-        'device_id': device_id,
-        'schedule': script,
-        'schedule_enabled': bool(document.get('schedule_enabled', True)),
-        'summary': schedule_lib.summarise(script),
-    })
+    return Response(
+        payload={
+            'device_id': device_id,
+            'schedule': script,
+            'schedule_enabled': bool(document.get('schedule_enabled', True)),
+            'summary': schedule_lib.summarise(script),
+        }
+    )
 
 
-def put_schedule(app: Any, request: Request, params: Tuple[str, ...],
-                 session: Optional[auth.Session]) -> Response:
+def put_schedule(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Validates and stores the schedule script of a device.
 
     Args:
@@ -708,12 +820,16 @@ def put_schedule(app: Any, request: Request, params: Tuple[str, ...],
     script = request.text('schedule')
     # One confirmation covers the save, whether what changed is the
     # script, whether the schedule runs at all, or both.
-    was_enabled = bool(app.devices.device_document(device_id).get(
-        'schedule_enabled', True))
+    was_enabled = bool(
+        app.devices.device_document(device_id).get('schedule_enabled', True)
+    )
     wants_enabled = request.flag('schedule_enabled', was_enabled)
     if wants_enabled != was_enabled:
-        what = ('enabling its schedule' if wants_enabled
-                else 'disabling its schedule')
+        what = (
+            'enabling its schedule'
+            if wants_enabled
+            else 'disabling its schedule'
+        )
     else:
         what = 'saving its schedule'
     refused = lock_guard(app, request, session, device_id, what)
@@ -725,24 +841,33 @@ def put_schedule(app: Any, request: Request, params: Tuple[str, ...],
     app.devices.set_schedule(device_id, script)
     if 'schedule_enabled' in request.body:
         app.devices.set_schedule_enabled(
-            device_id, request.flag('schedule_enabled', True))
+            device_id, request.flag('schedule_enabled', True)
+        )
     document = app.devices.device_document(device_id)
     actor = session.username if session else 'dashboard'
     rule_count = summary['rule_count']
     app.activity.add(
-        f'Saved schedule for {record.display_name} '
-        f'({rule_count} rule(s))', source=actor,
-        device_id=device_id, device_name=record.display_name)
-    return Response(payload={
-        'device_id': device_id,
-        'schedule': script,
-        'schedule_enabled': bool(document.get('schedule_enabled', True)),
-        'summary': summary,
-    })
+        f'Saved schedule for {record.display_name} ({rule_count} rule(s))',
+        source=actor,
+        device_id=device_id,
+        device_name=record.display_name,
+    )
+    return Response(
+        payload={
+            'device_id': device_id,
+            'schedule': script,
+            'schedule_enabled': bool(document.get('schedule_enabled', True)),
+            'summary': summary,
+        }
+    )
 
 
-def check_schedule(app: Any, request: Request, params: Tuple[str, ...],
-                   session: Optional[auth.Session]) -> Response:
+def check_schedule(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Validates a schedule script without storing it.
 
     Args:
@@ -755,13 +880,19 @@ def check_schedule(app: Any, request: Request, params: Tuple[str, ...],
         The validation summary.
     """
     del app, params, session
-    return Response(payload={
-        'summary': schedule_lib.summarise(request.text('schedule')),
-    })
+    return Response(
+        payload={
+            'summary': schedule_lib.summarise(request.text('schedule')),
+        }
+    )
 
 
-def snooze_device(app: Any, request: Request, params: Tuple[str, ...],
-                  session: Optional[auth.Session]) -> Response:
+def snooze_device(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Snoozes a device's schedule.
 
     The body carries ``for``: a time span or timestamp in systemd.time
@@ -777,19 +908,26 @@ def snooze_device(app: Any, request: Request, params: Tuple[str, ...],
         When the snooze ends, and the fresh device view.
     """
     actor = session.username if session else 'dashboard'
-    refused = lock_guard(app, request, session, params[0],
-                         'snoozing its schedule')
+    refused = lock_guard(
+        app, request, session, params[0], 'snoozing its schedule'
+    )
     if refused is not None:
         return refused
     until = app.snooze(params[0], request.text('for'), actor=actor)
-    return Response(payload={
-        'snoozed_until': until.isoformat(timespec='seconds'),
-        'device': app.device_view(app.devices.get(params[0])),
-    })
+    return Response(
+        payload={
+            'snoozed_until': until.isoformat(timespec='seconds'),
+            'device': app.device_view(app.devices.get(params[0])),
+        }
+    )
 
 
-def unsnooze_device(app: Any, request: Request, params: Tuple[str, ...],
-                    session: Optional[auth.Session]) -> Response:
+def unsnooze_device(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Lifts a snooze so the device's schedule runs again.
 
     Args:
@@ -804,14 +942,20 @@ def unsnooze_device(app: Any, request: Request, params: Tuple[str, ...],
     del request
     actor = session.username if session else 'dashboard'
     lifted = app.unsnooze(params[0], actor=actor)
-    return Response(payload={
-        'lifted': lifted,
-        'device': app.device_view(app.devices.get(params[0])),
-    })
+    return Response(
+        payload={
+            'lifted': lifted,
+            'device': app.device_view(app.devices.get(params[0])),
+        }
+    )
 
 
-def check_snooze(app: Any, request: Request, params: Tuple[str, ...],
-                 session: Optional[auth.Session]) -> Response:
+def check_snooze(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Works out when a snooze would end, without setting one.
 
     The custom snooze dialog calls this as the operator types, so a
@@ -830,16 +974,24 @@ def check_snooze(app: Any, request: Request, params: Tuple[str, ...],
     try:
         until = snooze_lib.resolve(request.text('for'))
     except snooze_lib.SnoozeError as err:
-        return Response(payload={'valid': False, 'error': str(err),
-                                 'snoozed_until': ''})
-    return Response(payload={
-        'valid': True, 'error': '',
-        'snoozed_until': until.isoformat(timespec='seconds'),
-    })
+        return Response(
+            payload={'valid': False, 'error': str(err), 'snoozed_until': ''}
+        )
+    return Response(
+        payload={
+            'valid': True,
+            'error': '',
+            'snoozed_until': until.isoformat(timespec='seconds'),
+        }
+    )
 
 
-def scan(app: Any, request: Request, params: Tuple[str, ...],
-         session: Optional[auth.Session]) -> Response:
+def scan(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Scans the local network for devices.
 
     Found devices are reported but not added, so the operator chooses
@@ -865,24 +1017,31 @@ def scan(app: Any, request: Request, params: Tuple[str, ...],
     for entry in found:
         host = entry.get('host', '')
         known = app.devices.find_by_host(host)
-        results.append({
-            'host': host,
-            'alias': entry.get('alias', ''),
-            'model': entry.get('model', ''),
-            'device_type': entry.get('device_type', ''),
-            'mac': entry.get('mac', ''),
-            'is_on': entry.get('is_on', False),
-            'known': known is not None,
-            'device_id': known.device_id if known else '',
-        })
+        results.append(
+            {
+                'host': host,
+                'alias': entry.get('alias', ''),
+                'model': entry.get('model', ''),
+                'device_type': entry.get('device_type', ''),
+                'mac': entry.get('mac', ''),
+                'is_on': entry.get('is_on', False),
+                'known': known is not None,
+                'device_id': known.device_id if known else '',
+            }
+        )
     results.sort(key=lambda item: (item['known'], item['host']))
-    app.activity.add(f'Network scan found {len(results)} device(s)',
-                     source=actor)
+    app.activity.add(
+        f'Network scan found {len(results)} device(s)', source=actor
+    )
     return Response(payload={'found': results, 'seconds': seconds})
 
 
-def get_settings(app: Any, request: Request, params: Tuple[str, ...],
-                 session: Optional[auth.Session]) -> Response:
+def get_settings(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Returns the daemon settings with secrets removed.
 
     Args:
@@ -895,28 +1054,38 @@ def get_settings(app: Any, request: Request, params: Tuple[str, ...],
         The settings and the paths they resolve to.
     """
     del request, params, session
-    return Response(payload={
-        'settings': app.settings.redacted(),
-        'daemon_user': _daemon_user(app),
-        'certificate': _certificate(app),
-        'file_checks': list(getattr(app, 'file_checks', [])),
-        'paths': {
-            'config': app.config_store.path,
-            'devices': app.settings.devices_file,
-            'device_dir': app.settings.device_dir,
-            'user_dir': app.settings.user_dir,
-            'certificate': app.settings.resolved_certificate(),
-            'key': app.settings.resolved_key(),
-        },
-        'restart_required_fields': [
-            'listen_host', 'listen_port', 'tls_certificate', 'tls_key',
-            'state_dir', 'daemon_user',
-        ],
-    })
+    return Response(
+        payload={
+            'settings': app.settings.redacted(),
+            'daemon_user': _daemon_user(app),
+            'certificate': _certificate(app),
+            'file_checks': list(getattr(app, 'file_checks', [])),
+            'paths': {
+                'config': app.config_store.path,
+                'devices': app.settings.devices_file,
+                'device_dir': app.settings.device_dir,
+                'user_dir': app.settings.user_dir,
+                'certificate': app.settings.resolved_certificate(),
+                'key': app.settings.resolved_key(),
+            },
+            'restart_required_fields': [
+                'listen_host',
+                'listen_port',
+                'tls_certificate',
+                'tls_key',
+                'state_dir',
+                'daemon_user',
+            ],
+        }
+    )
 
 
-def put_settings(app: Any, request: Request, params: Tuple[str, ...],
-                 session: Optional[auth.Session]) -> Response:
+def put_settings(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Saves changed settings.
 
     Args:
@@ -939,8 +1108,12 @@ def put_settings(app: Any, request: Request, params: Tuple[str, ...],
     return Response(payload={'settings': app.settings.redacted()})
 
 
-def get_preferences(app: Any, request: Request, params: Tuple[str, ...],
-                    session: Optional[auth.Session]) -> Response:
+def get_preferences(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Returns the preferences of the operator who asked.
 
     There is no way to ask for somebody else's: the account is taken
@@ -961,8 +1134,12 @@ def get_preferences(app: Any, request: Request, params: Tuple[str, ...],
     return Response(payload={'preferences': app.preferences(username)})
 
 
-def put_preferences(app: Any, request: Request, params: Tuple[str, ...],
-                    session: Optional[auth.Session]) -> Response:
+def put_preferences(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Saves the preferences of the operator who asked.
 
     Args:
@@ -979,13 +1156,19 @@ def put_preferences(app: Any, request: Request, params: Tuple[str, ...],
     changes = request.body.get('preferences', request.body)
     if not isinstance(changes, dict):
         return error(400, 'preferences must be sent as an object')
-    return Response(payload={
-        'preferences': app.set_preferences(username, changes),
-    })
+    return Response(
+        payload={
+            'preferences': app.set_preferences(username, changes),
+        }
+    )
 
 
-def get_activity(app: Any, request: Request, params: Tuple[str, ...],
-                 session: Optional[auth.Session]) -> Response:
+def get_activity(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Returns recent activity records.
 
     Args:
@@ -1000,13 +1183,19 @@ def get_activity(app: Any, request: Request, params: Tuple[str, ...],
     del params, session
     device_id = request.query.get('device', [''])[0]
     limit = request.number('limit', 100)
-    return Response(payload={
-        'activity': app.activity.records(limit=limit, device_id=device_id),
-    })
+    return Response(
+        payload={
+            'activity': app.activity.records(limit=limit, device_id=device_id),
+        }
+    )
 
 
-def list_sessions(app: Any, request: Request, params: Tuple[str, ...],
-                  session: Optional[auth.Session]) -> Response:
+def list_sessions(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Lists the users currently signed in.
 
     Args:
@@ -1022,8 +1211,12 @@ def list_sessions(app: Any, request: Request, params: Tuple[str, ...],
     return Response(payload={'sessions': app.sessions.active()})
 
 
-def reference(app: Any, request: Request, params: Tuple[str, ...],
-              session: Optional[auth.Session]) -> Response:
+def reference(
+    app: Any,
+    request: Request,
+    params: tuple[str, ...],
+    session: auth.Session | None,
+) -> Response:
     """Returns the schedule language reference for the help panel.
 
     Args:
@@ -1037,22 +1230,26 @@ def reference(app: Any, request: Request, params: Tuple[str, ...],
     """
     del app, request, params, session
     from kasapanel import cron  # pylint: disable=import-outside-toplevel
-    return Response(payload={
-        'actions': actions.catalogue(),
-        'aliases': actions.ALIASES,
-        'keywords': [
-            {'name': name, 'expands_to': value}
-            for name, value in sorted(cron.MACROS.items())
-        ],
-        'example': schedule_lib.EXAMPLE_SCRIPT,
-        'snooze': snooze_lib.reference(),
-    })
+
+    return Response(
+        payload={
+            'actions': actions.catalogue(),
+            'aliases': actions.ALIASES,
+            'keywords': [
+                {'name': name, 'expands_to': value}
+                for name, value in sorted(cron.MACROS.items())
+            ],
+            'example': schedule_lib.EXAMPLE_SCRIPT,
+            'snooze': snooze_lib.reference(),
+        }
+    )
 
 
-Handler = Callable[[Any, Request, Tuple[str, ...], Optional[auth.Session]],
-                   Response]
+Handler = Callable[
+    [Any, Request, tuple[str, ...], auth.Session | None], Response
+]
 
-ROUTES: List[Tuple[str, Pattern[str], Handler, bool]] = [
+ROUTES: list[tuple[str, Pattern[str], Handler, bool]] = [
     ('POST', re.compile(r'^/api/session$'), sign_in, False),
     ('DELETE', re.compile(r'^/api/session$'), sign_out, True),
     ('GET', re.compile(r'^/api/session$'), whoami, False),
@@ -1062,18 +1259,42 @@ ROUTES: List[Tuple[str, Pattern[str], Handler, bool]] = [
     ('GET', re.compile(r'^/api/devices/([\w.-]+)$'), get_device, True),
     ('PATCH', re.compile(r'^/api/devices/([\w.-]+)$'), update_device, True),
     ('DELETE', re.compile(r'^/api/devices/([\w.-]+)$'), delete_device, True),
-    ('POST', re.compile(r'^/api/devices/([\w.-]+)/action$'),
-     device_action, True),
-    ('POST', re.compile(r'^/api/devices/([\w.-]+)/refresh$'),
-     refresh_device, True),
-    ('GET', re.compile(r'^/api/devices/([\w.-]+)/schedule$'),
-     get_schedule, True),
-    ('PUT', re.compile(r'^/api/devices/([\w.-]+)/schedule$'),
-     put_schedule, True),
-    ('POST', re.compile(r'^/api/devices/([\w.-]+)/snooze$'),
-     snooze_device, True),
-    ('DELETE', re.compile(r'^/api/devices/([\w.-]+)/snooze$'),
-     unsnooze_device, True),
+    (
+        'POST',
+        re.compile(r'^/api/devices/([\w.-]+)/action$'),
+        device_action,
+        True,
+    ),
+    (
+        'POST',
+        re.compile(r'^/api/devices/([\w.-]+)/refresh$'),
+        refresh_device,
+        True,
+    ),
+    (
+        'GET',
+        re.compile(r'^/api/devices/([\w.-]+)/schedule$'),
+        get_schedule,
+        True,
+    ),
+    (
+        'PUT',
+        re.compile(r'^/api/devices/([\w.-]+)/schedule$'),
+        put_schedule,
+        True,
+    ),
+    (
+        'POST',
+        re.compile(r'^/api/devices/([\w.-]+)/snooze$'),
+        snooze_device,
+        True,
+    ),
+    (
+        'DELETE',
+        re.compile(r'^/api/devices/([\w.-]+)/snooze$'),
+        unsnooze_device,
+        True,
+    ),
     ('POST', re.compile(r'^/api/schedule/check$'), check_schedule, True),
     ('POST', re.compile(r'^/api/snooze/check$'), check_snooze, True),
     ('POST', re.compile(r'^/api/scan$'), scan, True),
@@ -1087,8 +1308,9 @@ ROUTES: List[Tuple[str, Pattern[str], Handler, bool]] = [
 ]
 
 
-def _match(request: Request) -> Tuple[Optional[Handler],
-                                      Tuple[str, ...], bool, bool]:
+def _match(
+    request: Request,
+) -> tuple[Handler | None, tuple[str, ...], bool, bool]:
     """Finds the handler for a request.
 
     Args:
@@ -1134,8 +1356,11 @@ def dispatch(app: Any, request: Request) -> Response:
     if request.method in WRITE_METHODS and session is not None:
         sent = request.headers(auth.CSRF_HEADER, '')
         if sent != session.csrf_token:
-            return error(403, 'the session token did not match; reload the '
-                              'page and sign in again')
+            return error(
+                403,
+                'the session token did not match; reload the '
+                'page and sign in again',
+            )
     try:
         return handler(app, request, params, session)
     except devicestore.DeviceError as err:

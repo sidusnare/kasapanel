@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
+
+# Configuration for yamllint.
+
+extends: default
+
+# Both are restored by npm and are not this project's sources.
+ignore: |
+  /node_modules/
+  frontend/node_modules/
+
+rules:
+  # 80 columns, as everywhere else in the tree.
+  line-length:
+    max: 80
+  # Comments explaining each option are the point of these files, and
+  # one space after the "#" reads better than the default two.
+  comments:
+    min-spaces-from-content: 1
+  # A document start marker adds nothing to a single-document file.
+  document-start: disable

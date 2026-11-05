@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-// see docs/ai-bom.spdx.json for the AI usage declaration.
+// SPDX-FileContributor: Claude Opus 5 (AI-generated)
+// AI usage declaration: docs/ai-bom.spdx.json
 
 // Small display helpers.  The daemon sends ISO timestamps without a zone
 // because everything it does is in the host's local time.
@@ -77,7 +77,7 @@ export function browserClock(summary, instant) {
       hourCycle: 'h23',
       timeZoneName: 'short',
     }).format(date);
-  } catch (err) {
+  } catch {
     return '';  // No Intl data: the host reading still stands on its own.
   }
 }

@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """A small ring buffer of recent events.
 
 Everything the daemon does on a device -- a schedule firing, a button
@@ -23,7 +23,7 @@ import datetime
 import itertools
 import logging
 import threading
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ LOG_LEVELS = {
 }
 
 
-def _line(record: Dict[str, Any]) -> str:
+def _line(record: dict[str, Any]) -> str:
     """Renders one record as a single log line.
 
     Args:
@@ -69,12 +69,19 @@ class ActivityLog:
             limit: How many records to keep before dropping the oldest.
         """
         self._lock = threading.Lock()
-        self._records: Deque[Dict[str, Any]] = collections.deque(
-            maxlen=max(int(limit), 10))
+        self._records: collections.deque[dict[str, Any]] = collections.deque(
+            maxlen=max(int(limit), 10)
+        )
         self._counter = itertools.count(1)
 
-    def add(self, message: str, level: str = 'info', source: str = 'daemon',
-            device_id: str = '', device_name: str = '') -> Dict[str, Any]:
+    def add(
+        self,
+        message: str,
+        level: str = 'info',
+        source: str = 'daemon',
+        device_id: str = '',
+        device_name: str = '',
+    ) -> dict[str, Any]:
         """Appends one record.
 
         Args:
@@ -102,8 +109,9 @@ class ActivityLog:
         _LOG.log(LOG_LEVELS[kind], '%s', _line(record))
         return record
 
-    def records(self, limit: int = 100,
-                device_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def records(
+        self, limit: int = 100, device_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Returns the most recent records, newest first.
 
         Args:
@@ -116,10 +124,9 @@ class ActivityLog:
         with self._lock:
             found = list(self._records)
         if device_id:
-            found = [item for item in found
-                     if item['device_id'] == device_id]
+            found = [item for item in found if item['device_id'] == device_id]
         found.reverse()
-        return found[:max(int(limit), 1)]
+        return found[: max(int(limit), 1)]
 
     def resize(self, limit: int) -> None:
         """Changes how many records are kept.
@@ -129,4 +136,5 @@ class ActivityLog:
         """
         with self._lock:
             self._records = collections.deque(
-                self._records, maxlen=max(int(limit), 10))
+                self._records, maxlen=max(int(limit), 10)
+            )

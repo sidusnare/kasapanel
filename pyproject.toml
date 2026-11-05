@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kasapanel"
-version = "1.8.2"
+dynamic = ["version"]
 description = "Threaded HTTPS dashboard, control and scheduler daemon for python-kasa devices"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,7 +39,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pylint>=3.0"]
+dev = [
+  "pylint>=3.0",
+  "ruff>=0.17",
+  "reuse>=5.0",
+  "yamllint>=1.37",
+]
 
 [project.urls]
 Homepage = "https://example.invalid/kasapanel"
@@ -51,5 +56,48 @@ kasapanel = "kasapanel.cli:main"
 [tool.setuptools]
 packages = ["kasapanel"]
 
+# The version lives in kasapanel/__init__.py and is read from there,
+# so it is defined in exactly one place.
+[tool.setuptools.dynamic]
+version = {attr = "kasapanel.__version__"}
+
 [tool.setuptools.package-data]
 kasapanel = ["static/*"]
+
+# Ruff is configured to match the Google Python Style Guide and this
+# project's established conventions rather than ruff's own defaults:
+# 80 columns and single quotes, not 88 and double.  Where a ruff default
+# disagrees with the style guide, the style guide wins.
+[tool.ruff]
+line-length = 80
+indent-width = 4
+target-version = "py310"
+extend-exclude = ["frontend/node_modules"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, pyupgrade, flake8-bugbear,
+# flake8-simplify and ruff's own checks.  Blind-except (BLE) is left to
+# pylint, which this project already scores 10.00 against: a daemon
+# thread that must not die has a legitimate use for a broad except.
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+# Google style: standard library, third party, then first party, with a
+# single blank line between groups.
+known-first-party = ["kasapanel"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# SIM117 (combine nested `with` statements) is off for the test suite
+# only, and stays enforced in the package.  The suite deliberately nests
+# `with mock.patch(...)` around `with self.assertRaises(...)` so that
+# arrangement reads separately from assertion; where several patches are
+# all arrangement it already combines them into one statement.  Merging
+# the two kinds would hide that distinction.
+"tests/*" = ["SIM117"]

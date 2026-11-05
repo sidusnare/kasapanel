@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Snoozing a device's schedule, and the time syntax that says how long.
 
 A snooze is a single instant stored in the per-device file: until then
@@ -31,21 +31,22 @@ the minute, like the scheduler; seconds are kept but rarely matter.
 
 import datetime
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 # Seconds per unit, as systemd.time defines them, months and years
 # included.  Unit names are case-sensitive: "m" is minutes, "M" months.
-UNIT_SECONDS: Dict[str, float] = {}
+UNIT_SECONDS: dict[str, float] = {}
 for _names, _seconds in (
-        (('usec', 'us', 'µs', 'μs'), 1e-6),
-        (('msec', 'ms'), 1e-3),
-        (('seconds', 'second', 'sec', 's'), 1),
-        (('minutes', 'minute', 'min', 'm'), 60),
-        (('hours', 'hour', 'hr', 'h'), 3600),
-        (('days', 'day', 'd'), 86400),
-        (('weeks', 'week', 'w'), 7 * 86400),
-        (('months', 'month', 'M'), 30.44 * 86400),
-        (('years', 'year', 'y'), 365.25 * 86400)):
+    (('usec', 'us', 'µs', 'μs'), 1e-6),
+    (('msec', 'ms'), 1e-3),
+    (('seconds', 'second', 'sec', 's'), 1),
+    (('minutes', 'minute', 'min', 'm'), 60),
+    (('hours', 'hour', 'hr', 'h'), 3600),
+    (('days', 'day', 'd'), 86400),
+    (('weeks', 'week', 'w'), 7 * 86400),
+    (('months', 'month', 'M'), 30.44 * 86400),
+    (('years', 'year', 'y'), 365.25 * 86400),
+):
     for _name in _names:
         UNIT_SECONDS[_name] = _seconds
 
@@ -56,7 +57,7 @@ MAX_SNOOZE = datetime.timedelta(days=366)
 
 # Offered in the interface as worked examples of the syntax.  Dated
 # examples are made up fresh by :func:`reference` so they never go stale.
-SPAN_EXAMPLES: Tuple[Tuple[str, str], ...] = (
+SPAN_EXAMPLES: tuple[tuple[str, str], ...] = (
     ('45min', 'forty-five minutes from now'),
     ('2h 30min', 'two and a half hours from now'),
     ('3d', 'three days from now'),
@@ -69,10 +70,17 @@ _SPAN_PART = re.compile(r'\s*(\d+(?:\.\d*)?|\.\d+)\s*([A-Za-zµμ]*)')
 
 _WEEKDAYS = {
     name: index
-    for index, names in enumerate((
-        ('mon', 'monday'), ('tue', 'tuesday'), ('wed', 'wednesday'),
-        ('thu', 'thursday'), ('fri', 'friday'), ('sat', 'saturday'),
-        ('sun', 'sunday')))
+    for index, names in enumerate(
+        (
+            ('mon', 'monday'),
+            ('tue', 'tuesday'),
+            ('wed', 'wednesday'),
+            ('thu', 'thursday'),
+            ('fri', 'friday'),
+            ('sat', 'saturday'),
+            ('sun', 'sunday'),
+        )
+    )
     for name in names
 }
 
@@ -121,7 +129,7 @@ def parse_span(text: str) -> datetime.timedelta:
         raise SnoozeError(f'"{text.strip()}" is far too long') from err
 
 
-def _clock(text: str) -> Optional[datetime.time]:
+def _clock(text: str) -> datetime.time | None:
     """Parses ``HH:MM`` or ``HH:MM:SS``.
 
     Args:
@@ -143,7 +151,7 @@ def _clock(text: str) -> Optional[datetime.time]:
         raise SnoozeError(f'"{text}" is not a time of day') from err
 
 
-def _day(text: str, now: datetime.datetime) -> Optional[datetime.date]:
+def _day(text: str, now: datetime.datetime) -> datetime.date | None:
     """Parses a date, or one of the words systemd accepts for one.
 
     Args:
@@ -195,8 +203,11 @@ def _timestamp(text: str, now: datetime.datetime) -> datetime.datetime:
         weekday = _WEEKDAYS[tokens.pop(0).lower().rstrip(',')]
     if not tokens or len(tokens) > 2:
         raise SnoozeError(f'"{text}" is not a time span or a timestamp')
-    reference = (now.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-                 if utc else now)
+    reference = (
+        now.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        if utc
+        else now
+    )
     day = _day(tokens[0].lower(), reference)
     clock = _clock(tokens[-1])
     if len(tokens) == 2 and (day is None or clock is None):
@@ -204,18 +215,24 @@ def _timestamp(text: str, now: datetime.datetime) -> datetime.datetime:
     if day is None and clock is None:
         raise SnoozeError(f'"{text}" is not a time span or a timestamp')
     moment = datetime.datetime.combine(
-        day or reference.date(), clock or datetime.time())
+        day or reference.date(), clock or datetime.time()
+    )
     if weekday is not None and moment.weekday() != weekday:
         raise SnoozeError(
-            f'{moment:%Y-%m-%d} is a {moment:%A}, not the day named')
+            f'{moment:%Y-%m-%d} is a {moment:%A}, not the day named'
+        )
     if utc:
-        moment = (moment.replace(tzinfo=datetime.timezone.utc)
-                  .astimezone().replace(tzinfo=None))
+        moment = (
+            moment.replace(tzinfo=datetime.timezone.utc)
+            .astimezone()
+            .replace(tzinfo=None)
+        )
     return moment
 
 
-def resolve(text: str,
-            now: Optional[datetime.datetime] = None) -> datetime.datetime:
+def resolve(
+    text: str, now: datetime.datetime | None = None
+) -> datetime.datetime:
     """Works out when a snooze written in systemd.time syntax ends.
 
     Args:
@@ -245,7 +262,7 @@ def resolve(text: str,
         elif source.startswith('-') or lowered.endswith(' ago'):
             until = now  # In the past by construction.
         elif lowered.endswith(' left'):
-            until = now + parse_span(source[:-len(' left')])
+            until = now + parse_span(source[: -len(' left')])
         else:
             try:
                 until = now + parse_span(source)
@@ -256,19 +273,23 @@ def resolve(text: str,
     except (OverflowError, OSError, ValueError) as err:
         raise SnoozeError(f'"{source}" is out of range') from err
     if until <= now:
-        hint = (' Say "tomorrow" and the time, for example "tomorrow 07:00".'
-                if _clock(source.split()[-1]) else '')
+        hint = (
+            ' Say "tomorrow" and the time, for example "tomorrow 07:00".'
+            if _clock(source.split()[-1])
+            else ''
+        )
         raise SnoozeError(f'"{source}" is not in the future.{hint}')
     if until - now > MAX_SNOOZE:
         raise SnoozeError(
             f'"{source}" is more than {MAX_SNOOZE.days} days away; '
-            'disable the schedule instead')
+            'disable the schedule instead'
+        )
     return until
 
 
-def active_until(value: Any,
-                 now: Optional[datetime.datetime] = None
-                 ) -> Optional[datetime.datetime]:
+def active_until(
+    value: Any, now: datetime.datetime | None = None
+) -> datetime.datetime | None:
     """Reads a stored snooze and says whether it is still in force.
 
     Args:
@@ -285,7 +306,7 @@ def active_until(value: Any,
     return stored
 
 
-def stored_until(value: Any) -> Optional[datetime.datetime]:
+def stored_until(value: Any) -> datetime.datetime | None:
     """Decodes a stored snooze, whether or not it has run out.
 
     A value that cannot be read is treated as no snooze at all: a hand
@@ -300,8 +321,7 @@ def stored_until(value: Any) -> Optional[datetime.datetime]:
     if not value:
         return None
     try:
-        return datetime.datetime.fromisoformat(str(value)).replace(
-            tzinfo=None)
+        return datetime.datetime.fromisoformat(str(value)).replace(tzinfo=None)
     except ValueError:
         return None
 
@@ -322,7 +342,7 @@ def first_minute(until: datetime.datetime) -> datetime.datetime:
     return floor + datetime.timedelta(minutes=1)
 
 
-def reference(now: Optional[datetime.datetime] = None) -> Dict[str, Any]:
+def reference(now: datetime.datetime | None = None) -> dict[str, Any]:
     """Describes the syntax for the interface.
 
     Args:
@@ -333,14 +353,19 @@ def reference(now: Optional[datetime.datetime] = None) -> Dict[str, Any]:
     """
     now = now or datetime.datetime.now()
     week = (now + datetime.timedelta(days=7)).replace(
-        hour=9, minute=0, second=0, microsecond=0)
+        hour=9, minute=0, second=0, microsecond=0
+    )
     dated = (
         (f'{week:%Y-%m-%d %H:%M}', 'a date and time'),
-        (f'{week:%a %Y-%m-%d %H:%M}',
-         'with a weekday, which must match the date'),
+        (
+            f'{week:%a %Y-%m-%d %H:%M}',
+            'with a weekday, which must match the date',
+        ),
     )
     return {
-        'examples': [{'text': text, 'means': means}
-                     for text, means in SPAN_EXAMPLES + dated],
+        'examples': [
+            {'text': text, 'means': means}
+            for text, means in SPAN_EXAMPLES + dated
+        ],
         'max_days': MAX_SNOOZE.days,
     }

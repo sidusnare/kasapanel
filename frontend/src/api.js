@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-// see docs/ai-bom.spdx.json for the AI usage declaration.
+// SPDX-FileContributor: Claude Opus 5 (AI-generated)
+// AI usage declaration: docs/ai-bom.spdx.json
 
 // The one place that talks to the daemon.
 //
@@ -29,7 +29,7 @@ function readStore() {
   try {
     const raw = window.sessionStorage.getItem(STORE_KEY);
     return raw ? JSON.parse(raw) : null;
-  } catch (err) {
+  } catch {
     return null;  // Private mode, or storage disabled: memory will do.
   }
 }
@@ -41,7 +41,7 @@ function writeStore(value) {
     } else {
       window.sessionStorage.removeItem(STORE_KEY);
     }
-  } catch (err) {
+  } catch {
     // Not fatal; the credentials stay in memory for this page load.
   }
 }
@@ -87,7 +87,7 @@ export async function call(method, path, body) {
   let payload = {};
   try {
     payload = await response.json();
-  } catch (err) {
+  } catch {
     payload = {error: 'the daemon sent something that was not JSON'};
   }
   if (!response.ok) {

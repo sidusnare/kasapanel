@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-// see docs/ai-bom.spdx.json for the AI usage declaration.
+// SPDX-FileContributor: Claude Opus 5 (AI-generated)
+// AI usage declaration: docs/ai-bom.spdx.json
 
 // A plain modal dialog: a plate over a dimmed cabinet.  Escape and a
 // click on the backdrop both close it, and focus goes to the first field

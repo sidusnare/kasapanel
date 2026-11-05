@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Device inventory and per-device configuration.
 
 Two kinds of file are managed here:
@@ -30,7 +30,7 @@ import os
 import re
 import threading
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from kasapanel import jsonstore
 from kasapanel import schedule as schedule_lib
@@ -40,7 +40,6 @@ _LOG = logging.getLogger(__name__)
 
 INVENTORY_VERSION = 1
 DEVICE_VERSION = 1
-
 
 
 class DeviceError(Exception):
@@ -53,7 +52,8 @@ def _now() -> str:
 
 
 DEVICE_ID_PATTERN = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+)
 
 
 def new_device_id() -> str:
@@ -129,12 +129,12 @@ class DeviceRecord:
     enabled: bool = True
     notes: str = ''
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Returns the record as a JSON friendly dictionary."""
         return dataclasses.asdict(self)
 
     @classmethod
-    def from_dict(cls, document: Dict[str, Any]) -> 'DeviceRecord':
+    def from_dict(cls, document: dict[str, Any]) -> 'DeviceRecord':
         """Builds a record from a decoded inventory entry.
 
         Args:
@@ -152,7 +152,8 @@ class DeviceRecord:
         device_id = str(document.get('device_id', '')).strip()
         if device_id and not is_device_id(device_id):
             raise DeviceError(
-                f'device entry has an unusable identifier: {device_id!r}')
+                f'device entry has an unusable identifier: {device_id!r}'
+            )
         mac = str(document.get('mac', '')).strip()
         return cls(
             device_id=device_id or new_device_id(),
@@ -164,7 +165,8 @@ class DeviceRecord:
             added_at=str(document.get('added_at', '')) or _now(),
             source=str(document.get('source', 'manual')),
             enabled=bool(document.get('enabled', True)),
-            notes=str(document.get('notes', '')))
+            notes=str(document.get('notes', '')),
+        )
 
     @property
     def display_name(self) -> str:
@@ -172,7 +174,7 @@ class DeviceRecord:
         return self.alias or self.host
 
 
-def default_device_document(device_id: str) -> Dict[str, Any]:
+def default_device_document(device_id: str) -> dict[str, Any]:
     """Returns the contents of a fresh per-device file.
 
     Args:
@@ -208,15 +210,16 @@ class DeviceStore:
         self._lock = threading.RLock()
         self._device_dir = device_dir
         self._inventory = jsonstore.JsonDocument(
-            inventory_path, {'version': INVENTORY_VERSION, 'devices': []})
-        self._records: Dict[str, DeviceRecord] = {}
+            inventory_path, {'version': INVENTORY_VERSION, 'devices': []}
+        )
+        self._records: dict[str, DeviceRecord] = {}
 
     @property
     def device_dir(self) -> str:
         """Returns the directory holding per-device files."""
         return self._device_dir
 
-    def load(self) -> List[DeviceRecord]:
+    def load(self) -> list[DeviceRecord]:
         """Reads the inventory from disk.
 
         Returns:
@@ -224,7 +227,7 @@ class DeviceStore:
         """
         with self._lock:
             document = self._inventory.load()
-            records: Dict[str, DeviceRecord] = {}
+            records: dict[str, DeviceRecord] = {}
             for entry in document.get('devices', []):
                 try:
                     record = DeviceRecord.from_dict(entry)
@@ -237,19 +240,22 @@ class DeviceStore:
 
     def _flush(self) -> None:
         """Writes the inventory back to disk.  Callers hold the lock."""
-        self._inventory.replace({
-            'version': INVENTORY_VERSION,
-            'updated_at': _now(),
-            'devices': [record.to_dict()
-                        for record in self._records.values()],
-        })
+        self._inventory.replace(
+            {
+                'version': INVENTORY_VERSION,
+                'updated_at': _now(),
+                'devices': [
+                    record.to_dict() for record in self._records.values()
+                ],
+            }
+        )
 
-    def records(self) -> List[DeviceRecord]:
+    def records(self) -> list[DeviceRecord]:
         """Returns every known device record."""
         with self._lock:
             return list(self._records.values())
 
-    def enabled_records(self) -> List[DeviceRecord]:
+    def enabled_records(self) -> list[DeviceRecord]:
         """Returns the records of devices that are not disabled."""
         return [record for record in self.records() if record.enabled]
 
@@ -271,7 +277,7 @@ class DeviceStore:
             raise DeviceError(f'unknown device "{device_id}"')
         return record
 
-    def find_by_host(self, host: str) -> Optional[DeviceRecord]:
+    def find_by_host(self, host: str) -> DeviceRecord | None:
         """Looks a device up by host name or address.
 
         Args:
@@ -286,7 +292,7 @@ class DeviceStore:
                 return record
         return None
 
-    def find_by_mac(self, mac: str) -> Optional[DeviceRecord]:
+    def find_by_mac(self, mac: str) -> DeviceRecord | None:
         """Looks a device up by MAC address.
 
         This is what keeps a device's identity across a change of
@@ -306,8 +312,13 @@ class DeviceStore:
                 return record
         return None
 
-    def add(self, host: str, alias: str = '', source: str = 'manual',
-            info: Optional[Dict[str, Any]] = None) -> DeviceRecord:
+    def add(
+        self,
+        host: str,
+        alias: str = '',
+        source: str = 'manual',
+        info: dict[str, Any] | None = None,
+    ) -> DeviceRecord:
         """Adds a device, or updates the matching one.
 
         Args:
@@ -336,11 +347,13 @@ class DeviceStore:
             existing = self.find_by_mac(mac) or self.find_by_host(host)
             if existing is not None:
                 existing.host = host
-                existing.alias = alias or existing.alias or str(
-                    info.get('alias', ''))
+                existing.alias = (
+                    alias or existing.alias or str(info.get('alias', ''))
+                )
                 existing.model = str(info.get('model', '')) or existing.model
-                existing.device_type = (str(info.get('device_type', ''))
-                                        or existing.device_type)
+                existing.device_type = (
+                    str(info.get('device_type', '')) or existing.device_type
+                )
                 existing.mac = mac or existing.mac
                 self._flush()
                 self.device_document(existing.device_id)
@@ -352,15 +365,15 @@ class DeviceStore:
                 model=str(info.get('model', '')),
                 device_type=str(info.get('device_type', '')),
                 mac=mac,
-                source=source)
+                source=source,
+            )
             self._records[record.device_id] = record
             self._flush()
             self.device_document(record.device_id)
             _LOG.info('added device %s (%s)', record.display_name, record.host)
             return record
 
-    def update(self, device_id: str,
-               changes: Dict[str, Any]) -> DeviceRecord:
+    def update(self, device_id: str, changes: dict[str, Any]) -> DeviceRecord:
         """Updates the editable fields of a record.
 
         Args:
@@ -389,7 +402,7 @@ class DeviceStore:
             self._flush()
         return record
 
-    def annotate(self, device_id: str, info: Dict[str, Any]) -> None:
+    def annotate(self, device_id: str, info: dict[str, Any]) -> None:
         """Fills in details learned from a live device.
 
         Args:
@@ -460,7 +473,7 @@ class DeviceStore:
             raise DeviceError(f'{device_id!r} is not a device identifier')
         return os.path.join(self._device_dir, f'{device_id}.json')
 
-    def device_document(self, device_id: str) -> Dict[str, Any]:
+    def device_document(self, device_id: str) -> dict[str, Any]:
         """Reads a per-device file, creating it when missing.
 
         Args:
@@ -482,8 +495,9 @@ class DeviceStore:
             document.setdefault('secure_locked', False)
             return document
 
-    def save_device_document(self, device_id: str,
-                             document: Dict[str, Any]) -> Dict[str, Any]:
+    def save_device_document(
+        self, device_id: str, document: dict[str, Any]
+    ) -> dict[str, Any]:
         """Writes a per-device file.
 
         Args:
@@ -511,7 +525,7 @@ class DeviceStore:
         """
         return str(self.device_document(device_id).get('schedule', ''))
 
-    def set_schedule(self, device_id: str, script: str) -> Dict[str, Any]:
+    def set_schedule(self, device_id: str, script: str) -> dict[str, Any]:
         """Validates and stores the schedule script of a device.
 
         Args:
@@ -529,8 +543,9 @@ class DeviceStore:
         document['schedule'] = script
         return self.save_device_document(device_id, document)
 
-    def set_schedule_enabled(self, device_id: str,
-                             enabled: bool) -> Dict[str, Any]:
+    def set_schedule_enabled(
+        self, device_id: str, enabled: bool
+    ) -> dict[str, Any]:
         """Turns the schedule of one device on or off.
 
         Args:
@@ -568,10 +583,9 @@ class DeviceStore:
         Returns:
             True when a confirmation must carry the password.
         """
-        return bool(
-            self.device_document(device_id).get('secure_locked', False))
+        return bool(self.device_document(device_id).get('secure_locked', False))
 
-    def set_locked(self, device_id: str, locked: bool) -> Dict[str, Any]:
+    def set_locked(self, device_id: str, locked: bool) -> dict[str, Any]:
         """Locks or unlocks a device.
 
         Args:
@@ -586,8 +600,9 @@ class DeviceStore:
             document['locked'] = bool(locked)
             return self.save_device_document(device_id, document)
 
-    def snooze(self, device_id: str,
-               until: datetime.datetime) -> Dict[str, Any]:
+    def snooze(
+        self, device_id: str, until: datetime.datetime
+    ) -> dict[str, Any]:
         """Holds a device's schedule until a given moment.
 
         Args:
@@ -602,8 +617,9 @@ class DeviceStore:
             document['snoozed_until'] = until.isoformat(timespec='seconds')
             return self.save_device_document(device_id, document)
 
-    def unsnooze(self, device_id: str,
-                 ended_by: Optional[datetime.datetime] = None) -> bool:
+    def unsnooze(
+        self, device_id: str, ended_by: datetime.datetime | None = None
+    ) -> bool:
         """Lifts a snooze.
 
         Args:
@@ -621,14 +637,17 @@ class DeviceStore:
             if not document.get('snoozed_until'):
                 return False
             stored = snooze_lib.stored_until(document.get('snoozed_until'))
-            if (ended_by is not None and stored is not None
-                    and stored > ended_by):
+            if (
+                ended_by is not None
+                and stored is not None
+                and stored > ended_by
+            ):
                 return False
             document.pop('snoozed_until', None)
             self.save_device_document(device_id, document)
             return True
 
-    def record_state(self, device_id: str, state: Dict[str, Any]) -> None:
+    def record_state(self, device_id: str, state: dict[str, Any]) -> None:
         """Stores the last known state of a device.
 
         Args:

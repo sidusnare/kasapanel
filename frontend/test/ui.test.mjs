@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-// see docs/ai-bom.spdx.json for the AI usage declaration.
+// SPDX-FileContributor: Claude Opus 5 (AI-generated)
+// AI usage declaration: docs/ai-bom.spdx.json
 
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {after, describe, it} from 'node:test';
 import {findByText, mount, text} from './harness.mjs';
 
@@ -58,8 +59,18 @@ describe('sign in', () => {
     assert.ok(findByText(row, 'button', 'Sign out'),
       'the versions should share a row with the sign-out button');
     const versions = text(row.querySelector('.versions'));
-    assert.match(versions, /kasapanel 1\.8\.2/);
-    assert.match(versions, /python-kasa 0\.10\.2/);
+    // Read the expected versions from the fixture rather than
+    // repeating them: the project version is defined once, in
+    // kasapanel/__init__.py, and tests/test_version.py checks that
+    // this fixture still agrees with it.
+    const expected = JSON.parse(
+      await readFile(new URL('./fixtures/dashboard.json', import.meta.url),
+        'utf8')).versions;
+    assert.ok(expected.kasapanel, 'the fixture should carry a version');
+    assert.ok(versions.includes(`kasapanel ${expected.kasapanel}`),
+      `expected kasapanel ${expected.kasapanel} in ${versions}`);
+    assert.ok(versions.includes(`python-kasa ${expected.python_kasa}`),
+      `expected python-kasa ${expected.python_kasa} in ${versions}`);
   });
 
   // The bug this suite exists for: a browser that refuses to keep the

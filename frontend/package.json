@@ -1,10 +1,12 @@
 {
   "name": "kasapanel-frontend",
-  "version": "1.8.2",
   "private": true,
   "description": "React user interface for the Kasa Panel daemon",
   "license": "GPL-3.0-or-later",
   "type": "module",
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
@@ -15,7 +17,14 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1",
-    "jsdom": "^30.0.1"
+    "@eslint/js": "^9.39.5",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^17.14.0",
+    "jsdom": "^31.0.0"
+  },
+  "allowScripts": {
+    "esbuild": false
   }
 }

@@ -5,11 +5,11 @@
       "type": "CreationInfo",
       "@id": "_:creationInfo",
       "specVersion": "3.0.1",
-      "created": "2026-07-28T21:30:00Z",
+      "created": "2026-11-05T00:00:00Z",
       "createdBy": [
         "urn:spdx.dev:kasapanel:agent-contributors"
       ],
-      "comment": "AI usage declaration for the kasapanel 1.0.0 source tree. Every source file in this repository carries an SPDX-FileContributor header pointing at this document. The software bill of materials for the same release is a separate SPDX 2.3 document at sbom.spdx.json."
+      "comment": "AI usage declaration for the kasapanel 1.8.3 source tree. Every source file in this repository carries an SPDX-FileContributor header pointing at this document. The software bill of materials for the same release is a separate SPDX 2.3 document at sbom.spdx.json."
     },
     {
       "type": "Organization",
@@ -32,9 +32,9 @@
     },
     {
       "type": "SpdxDocument",
-      "spdxId": "urn:spdx.dev:kasapanel:ai-bom-1.0.0",
+      "spdxId": "urn:spdx.dev:kasapanel:ai-bom-1.8.3",
       "creationInfo": "_:creationInfo",
-      "name": "kasapanel-ai-bom-1.0.0",
+      "name": "kasapanel-ai-bom-1.8.3",
       "dataLicense": "https://spdx.org/licenses/CC0-1.0",
       "profileConformance": [
         "core",
@@ -57,7 +57,7 @@
       "spdxId": "urn:spdx.dev:kasapanel:package-kasapanel",
       "creationInfo": "_:creationInfo",
       "name": "kasapanel",
-      "software_packageVersion": "1.0.0",
+      "software_packageVersion": "1.8.3",
       "software_primaryPurpose": "application",
       "description": "Threaded HTTPS dashboard, control and scheduler daemon for python-kasa devices.",
       "suppliedBy": "urn:spdx.dev:kasapanel:agent-contributors",
@@ -83,7 +83,7 @@
       ],
       "ai_useSensitivePersonalInformation": "no",
       "ai_safetyRiskAssessment": "low",
-      "ai_informationAboutApplication": "Used through a chat interface to draft the Python modules, the browser assets, the unit tests, the packaging metadata and the documentation of kasapanel 1.0.0 from a natural-language specification supplied by the contributors. Every generated file was executed, linted against Google's pylintrc, exercised by the unit test suite, and smoke tested against a running instance before being accepted. The generated content is original to this project; the model was not asked to reproduce third-party code.",
+      "ai_informationAboutApplication": "Used through a chat interface to draft the Python modules, the browser assets, the unit tests, the packaging metadata and the documentation of kasapanel 1.8.3 from a natural-language specification supplied by the contributors. Every generated file was executed, linted against Google's pylintrc, exercised by the unit test suite, and smoke tested against a running instance before being accepted. The generated content is original to this project; the model was not asked to reproduce third-party code.",
       "ai_informationAboutTraining": "noAssertion",
       "ai_limitation": "Model output is not authoritative. Known risks that the review process is intended to catch: plausible but wrong API usage against python-kasa and PAM, security assumptions that do not hold on a particular host, cron edge cases around daylight saving transitions, and confident but unverified statements in prose. Reviewers should treat every line as ordinary unreviewed contribution rather than as tested library code.",
       "ai_standardCompliance": [],
@@ -122,7 +122,7 @@
       "creationInfo": "_:creationInfo",
       "subject": "urn:spdx.dev:kasapanel:package-kasapanel",
       "annotationType": "other",
-      "statement": "Header convention used throughout the tree: each file carries SPDX-FileCopyrightText, SPDX-License-Identifier: GPL-3.0-or-later, and an SPDX-FileContributor line recording AI assistance and referring to docs/ai-bom.spdx.json. Files without a comment syntax (JSON) are covered by this document and by sbom.spdx.json instead of by an inline header."
+      "statement": "Header convention used throughout the tree: each file carries SPDX-FileCopyrightText, SPDX-License-Identifier: GPL-3.0-or-later, and SPDX-FileContributor naming the model and its version in the form 'Claude Opus 5 (AI-generated)', followed by a line pointing at this document. Files that cannot carry a comment (JSON), and the two files whose bodies quote an SPDX tag as data, are covered by REUSE.toml entries instead of by an inline header; the tree passes reuse lint."
     }
   ]
 }

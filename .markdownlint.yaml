@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Kasa Panel contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
+
+# Configuration for markdownlint (the markdownlint-cli2 / DavidAnson
+# implementation, whose rule parameters these are).  Run it with
+# `npm run lint:md`.
+
+# Start from the full rule set and change only what this project needs.
+default: true
+
+# CHANGELOG.md repeats "Added", "Changed", "Fixed" and the rest under
+# every release heading, so the same heading text recurring is only a
+# problem between siblings of one parent, never across the file.
+MD024:
+  siblings_only: true
+
+# Prose wraps at 80 columns, the same as the code.  Tables and code
+# blocks are exempt: a table row cannot be wrapped without breaking the
+# table, and a shell command must stay on one line to be copied.
+MD013:
+  line_length: 80
+  tables: false
+  code_blocks: false

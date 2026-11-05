@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """The per-device schedule script language.
 
 Each device owns a small plain text program.  One rule per line, blank
@@ -23,22 +23,24 @@ the same minute both run, in the order they appear in the file.
 
 import dataclasses
 import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
-from kasapanel import actions
-from kasapanel import cron
+from kasapanel import actions, cron
 
 COMMENT_CHAR = '#'
 
-EXAMPLE_SCRIPT = '\n'.join((
-    '# One rule per line: <schedule> <action> [arguments]',
-    '# Times use the daemon host clock, to the minute.',
-    '',
-    '# 0 6 * * mon-fri   on',
-    '# 30 22 * * *       off',
-    '# */30 * * * *      refresh',
-    '',
-))
+EXAMPLE_SCRIPT = '\n'.join(
+    (
+        '# One rule per line: <schedule> <action> [arguments]',
+        '# Times use the daemon host clock, to the minute.',
+        '',
+        '# 0 6 * * mon-fri   on',
+        '# 30 22 * * *       off',
+        '# */30 * * * *      refresh',
+        '',
+    )
+)
 
 
 class ScheduleError(ValueError):
@@ -62,15 +64,15 @@ class ScheduleEntry:
     text: str
     expression: cron.CronExpression
     action: str
-    arguments: Tuple[str, ...]
-    last_fired: Optional[datetime.datetime] = None
+    arguments: tuple[str, ...]
+    last_fired: datetime.datetime | None = None
 
     @property
     def command(self) -> str:
         """Returns the action and its arguments as one string."""
-        return ' '.join((self.action,) + self.arguments).strip()
+        return ' '.join((self.action, *self.arguments)).strip()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Returns a JSON friendly view of the rule."""
         return {
             'line_number': self.line_number,
@@ -97,7 +99,7 @@ class ScheduleProblem:
     text: str
     message: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Returns a JSON friendly view of the problem."""
         return {
             'line_number': self.line_number,
@@ -140,7 +142,8 @@ def _parse_line(line_number: int, text: str) -> ScheduleEntry:
         if len(tokens) < 6:
             raise ScheduleError(
                 'a rule needs 5 schedule fields followed by an action, '
-                'for example "30 22 * * * off"')
+                'for example "30 22 * * * off"'
+            )
         schedule_text = ' '.join(tokens[:5])
         remainder = tokens[5:]
     if not remainder:
@@ -158,11 +161,13 @@ def _parse_line(line_number: int, text: str) -> ScheduleEntry:
         text=text,
         expression=expression,
         action=spec.name,
-        arguments=tuple(remainder[1:]))
+        arguments=tuple(remainder[1:]),
+    )
 
 
-def parse_script(script: str) -> Tuple[List[ScheduleEntry],
-                                       List[ScheduleProblem]]:
+def parse_script(
+    script: str,
+) -> tuple[list[ScheduleEntry], list[ScheduleProblem]]:
     """Parses a whole schedule script.
 
     Parsing never raises: valid rules and problems are returned side by
@@ -174,8 +179,8 @@ def parse_script(script: str) -> Tuple[List[ScheduleEntry],
     Returns:
         A tuple of the parsed rules and the problems found.
     """
-    entries: List[ScheduleEntry] = []
-    problems: List[ScheduleProblem] = []
+    entries: list[ScheduleEntry] = []
+    problems: list[ScheduleProblem] = []
     for index, raw_line in enumerate((script or '').splitlines(), start=1):
         text = _strip_comment(raw_line)
         if not text:
@@ -187,7 +192,7 @@ def parse_script(script: str) -> Tuple[List[ScheduleEntry],
     return entries, problems
 
 
-def parse_strict(script: str) -> List[ScheduleEntry]:
+def parse_strict(script: str) -> list[ScheduleEntry]:
     """Parses a schedule script and rejects it if anything is wrong.
 
     Args:
@@ -209,8 +214,8 @@ def parse_strict(script: str) -> List[ScheduleEntry]:
 def next_runs(
     entries: Sequence[ScheduleEntry],
     count: int = 5,
-    now: Optional[datetime.datetime] = None,
-) -> List[Dict[str, Any]]:
+    now: datetime.datetime | None = None,
+) -> list[dict[str, Any]]:
     """Builds a preview of the next few firings of a script.
 
     Args:
@@ -223,7 +228,7 @@ def next_runs(
         the command, sorted by time.
     """
     moment = now or datetime.datetime.now()
-    upcoming: List[Tuple[datetime.datetime, ScheduleEntry]] = []
+    upcoming: list[tuple[datetime.datetime, ScheduleEntry]] = []
     for entry in entries:
         cursor = moment
         for _ in range(count):
@@ -235,16 +240,19 @@ def next_runs(
     upcoming.sort(key=lambda item: (item[0], item[1].line_number))
     preview = []
     for fires, entry in upcoming[:count]:
-        preview.append({
-            'when': fires.isoformat(timespec='minutes'),
-            'line_number': entry.line_number,
-            'command': entry.command,
-        })
+        preview.append(
+            {
+                'when': fires.isoformat(timespec='minutes'),
+                'line_number': entry.line_number,
+                'command': entry.command,
+            }
+        )
     return preview
 
 
-def summarise(script: str,
-              now: Optional[datetime.datetime] = None) -> Dict[str, Any]:
+def summarise(
+    script: str, now: datetime.datetime | None = None
+) -> dict[str, Any]:
     """Validates a script and describes what it will do.
 
     Args:

@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Atomic, thread-safe JSON persistence helpers.
 
 Every piece of persistent state in Kasa Panel lives in its own JSON
@@ -17,7 +17,7 @@ import logging
 import os
 import tempfile
 import threading
-from typing import Any, Dict, Optional
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def ensure_directory(path: str) -> None:
         raise StoreError(f'cannot create directory {path}: {err}') from err
 
 
-def read_json(path: str, default: Optional[Any] = None) -> Any:
+def read_json(path: str, default: Any | None = None) -> Any:
     """Reads a JSON document from disk.
 
     Args:
@@ -58,7 +58,7 @@ def read_json(path: str, default: Optional[Any] = None) -> Any:
         StoreError: If the file exists but cannot be read or decoded.
     """
     try:
-        with open(path, 'r', encoding='utf-8') as handle:
+        with open(path, encoding='utf-8') as handle:
             return json.load(handle)
     except FileNotFoundError:
         return default
@@ -82,7 +82,8 @@ def write_json(path: str, document: Any) -> None:
     tmp_path = None
     try:
         fileno, tmp_path = tempfile.mkstemp(
-                prefix='.tmp-', dir=directory, text=True)
+            prefix='.tmp-', dir=directory, text=True
+        )
         handle = os.fdopen(fileno, 'w', encoding='utf-8')
         json.dump(document, handle, indent=2, sort_keys=True)
         handle.write('\n')
@@ -109,7 +110,7 @@ class JsonDocument:
     from disk and :meth:`save` flushes it back atomically.
     """
 
-    def __init__(self, path: str, default: Optional[Dict[str, Any]] = None):
+    def __init__(self, path: str, default: dict[str, Any] | None = None):
         """Initialises the document.
 
         Args:
@@ -119,7 +120,7 @@ class JsonDocument:
         self._path = path
         self._default = default if default is not None else {}
         self._lock = threading.RLock()
-        self._data: Dict[str, Any] = dict(self._default)
+        self._data: dict[str, Any] = dict(self._default)
         self._loaded = False
 
     @property
@@ -132,7 +133,7 @@ class JsonDocument:
         """Returns the lock guarding this document."""
         return self._lock
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         """Reads the document from disk into the cache.
 
         Returns:
@@ -143,20 +144,21 @@ class JsonDocument:
             if not isinstance(data, dict):
                 if data is not None:
                     _LOG.warning(
-                        '%s is not a JSON object; using defaults', self._path)
+                        '%s is not a JSON object; using defaults', self._path
+                    )
                 data = dict(self._default)
             self._data = data
             self._loaded = True
             return self._data
 
-    def data(self) -> Dict[str, Any]:
+    def data(self) -> dict[str, Any]:
         """Returns the cached document, loading it on first use."""
         with self._lock:
             if not self._loaded:
                 self.load()
             return self._data
 
-    def replace(self, document: Dict[str, Any]) -> None:
+    def replace(self, document: dict[str, Any]) -> None:
         """Replaces the cached document and writes it out.
 
         Args:

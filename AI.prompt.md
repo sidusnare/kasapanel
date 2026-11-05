@@ -3,8 +3,8 @@ SPDX-FileCopyrightText: 2026 Kasa Panel contributors
 
 SPDX-License-Identifier: GPL-3.0-or-later
 
-SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-see docs/ai-bom.spdx.json for the AI usage declaration.
+SPDX-FileContributor: Claude Opus 5 (AI-generated)
+AI usage declaration: docs/ai-bom.spdx.json
 
 This file is the prompt that produces this project.  Everything below
 the line is meant to be handed to a capable coding model as-is.  The
@@ -25,6 +25,174 @@ scheduler for TP-Link Kasa smart devices through
 Work in a directory called `kasapanel`. Write real files to disk, run what
 you write, and fix what breaks before reporting back. Do not describe code
 you have not executed.
+
+## 0. Engineering preamble
+
+These requirements govern everything in this project. They are kept
+verbatim in [`preamble.txt`](preamble.txt), and `tests/test_prompt.py`
+fails if the copy below drifts from that file, so there is one policy
+and not two. Everything from section 1 onwards is project specific and
+takes precedence over this preamble, as its own opening paragraph says.
+
+```text
+These requirements apply to all code, configuration, data, and documentation
+produced for this project. The key words MUST, MUST NOT, SHOULD, and MAY are
+to be interpreted as described in RFC 2119. Project-specific instructions
+later in this prompt take precedence over this preamble. If any requirement
+cannot be met, state this explicitly and explain why; never silently omit it.
+
+TOOLING
+- If a task needs a host tool that is not installed but is available from
+  the platform's native package manager (e.g., apt on Debian/Ubuntu, dnf on
+  Fedora, pkg on FreeBSD, Homebrew on macOS) at a version that meets the
+  requirement, STOP and ask the user to install it. Name the tool, the
+  package that provides it, and the install command (e.g., sudo apt install
+  shellcheck).
+- SHOULD NOT synthesize a workaround. This includes reimplementing the tool,
+  substituting a different tool, downloading binaries or scripts from other
+  sources, or installing a host tool through a language package manager
+  (pip, npm, cargo, gem) instead of the native package, unless the user
+  explicitly approves.
+- MUST NOT install system packages without the user's approval.
+- Resume only after the user confirms the tool is installed or gives other
+  direction.
+- This applies to host tools, not to project dependencies declared in the
+  project's own manifest (e.g., pyproject.toml, Cargo.toml, package.json).
+
+STYLE, FORMATTING, AND LINTING
+- Code SHOULD follow the Google style guide for its language where one exists.
+  Otherwise, follow the language's dominant community standard (e.g., the
+  Rust Style Guide, the Ruby Style Guide).
+- Code MUST be formatted with the language's standard formatter, configured
+  for Google style where supported.
+- Code and structured data MUST pass the following with zero errors.
+  Modified or generated linter and formatter configuration files
+  MUST be included in the repo. Where a linter default conflicts with the
+  style guide, configure the linter to match the style guide.
+    Python: ruff check and ruff format; pylint score of 9.5/10 or higher.
+    Shell: ShellCheck, with as few warnings as possible.
+    JavaScript/TypeScript: ESLint (include the config used).
+    Rust: cargo clippy -- -D warnings.
+    Ruby: RuboCop.
+    C/C++: clang-tidy; clang-format --style=Google.
+    Java: Checkstyle with google_checks.xml; PMD.
+    Kotlin: ktlint; detekt.
+    Swift: SwiftLint.
+    Go: gofmt; go vet.
+    YAML: yamllint. Markdown: markdownlint. Dockerfile: hadolint.
+- Linter suppressions MUST be as narrow as possible (one line and one rule)
+  and MUST include a comment explaining why the issue cannot be fixed.
+  ShellCheck: if a directive is needed for the first command in a script,
+  place a no-op command (true or :) before it, because a directive before
+  the first command applies to the entire file.
+- If tools are available, run the linters and report the results. If a
+  required linter is missing, follow the TOOLING section. If there is no
+  execution environment at all, state that the code has not been linted.
+  Never claim a linter passes without having run it.
+
+SECRETS AND CONFIGURATION
+- Credentials, tokens, and keys MUST NOT be hard-coded or stored in
+  plaintext.
+- Android: Encrypt credentials and session tokens with an Android
+  Keystore-backed key (e.g., AES-GCM) before persisting them.
+  EncryptedSharedPreferences MUST NOT be used.
+- Apple platforms: Store secrets in the Keychain.
+- GNU/Linux, BSD, and similar systems: Use YAML (.yaml) for configuration
+  and JSON for structured data files.
+- Service daemons should store configuration in /etc/<project name>/ .
+- User space applications SHOULD use config files located per the XDG Base
+  Directory Specification. Secrets MUST use the Secret Service API where
+  available.
+- Configuration files SHOULD include comments explaining each option's
+  meaning, valid values, and default.
+
+VERSIONING
+- The project MUST use Semantic Versioning 2.0.0 (https://semver.org/spec/v2.0.0.html):
+  MAJOR.MINOR.PATCH, with optional pre-release (-alpha.1) and build
+  metadata (+20261027) as defined by the specification.
+- The public API MUST be documented, since SemVer is defined against it.
+  For applications without a programmatic API, the public API includes
+  command-line options, configuration file format and options, structured
+  data file formats, environment variables, and exit codes.
+- Initial development MUST start at 0.1.0. Version 1.0.0 marks the first
+  stable public API.
+- The version MUST be defined in one place (e.g., pyproject.toml,
+  Cargo.toml, package.json) and derived from there wherever else it
+  appears. The SBOM package version MUST match it.
+- When making changes, state which version component they require bumping
+  and why: MAJOR for incompatible API changes, MINOR for backward-compatible
+  additions, PATCH for backward-compatible fixes.
+- Release tags SHOULD use the form vMAJOR.MINOR.PATCH (e.g., v1.4.2). The
+  leading "v" belongs to the tag only, not to the version itself.
+- Where a platform or ecosystem imposes its own version format, map the
+  SemVer version to it and document the mapping. Examples: Python
+  pre-releases normalize per PEP 440 (1.0.0-alpha.1 becomes 1.0.0a1);
+  Android also requires an integer versionCode; Apple's
+  CFBundleShortVersionString does not allow pre-release suffixes.
+- The project MUST maintain CHANGELOG.md following Keep a Changelog 1.1.0
+  (https://keepachangelog.com/en/1.1.0/):
+    - Entries are written for users, not copied from commit messages.
+    - Every change MUST be recorded under an "Unreleased" section at the
+      top, grouped as Added, Changed, Deprecated, Removed, Fixed, or
+      Security.
+    - On release, the Unreleased entries move under a new heading of the
+      form "## [MAJOR.MINOR.PATCH] - YYYY-MM-DD", newest release first.
+    - Breaking changes MUST be clearly marked, and the version bump MUST be
+      consistent with the entries (e.g., anything under Removed, or an
+      incompatible Changed entry, requires a MAJOR bump after 1.0.0).
+    - Version headings SHOULD link to a comparison of the release tags
+      where the repository host supports it.
+- Markdown lint configuration MUST set MD024 (no duplicate headings) to
+  siblings_only: true, since each release repeats the same section names.
+
+LICENSING AND PROVENANCE
+- License the project GPL-3.0-or-later. LICENSE MUST be an exact copy of
+  https://www.gnu.org/licenses/gpl-3.0.txt. If you cannot fetch it, do not
+  reproduce it; instead instruct the user to run:
+    curl -o LICENSE https://www.gnu.org/licenses/gpl-3.0.txt
+- The project MUST be REUSE-compliant and pass `reuse lint`. Every file
+  carries SPDX-FileCopyrightText and SPDX-License-Identifier headers; files
+  that cannot hold comments (e.g., JSON) use a REUSE.toml entry.
+- Every file written wholly or partly by AI MUST include the header:
+    SPDX-FileContributor: <model name and version> (AI-generated)
+- Provide an SPDX 3.0 SBOM listing all dependencies. Record the AI model(s)
+  used to generate the code in the SBOM creation info. If the software
+  includes or depends on AI models, describe them using the SPDX AI profile
+  and link to the publisher's model cards. Do not invent checksums or
+  versions; leave unknown fields to be populated by an SBOM tool.
+
+PROMPT RECORD
+- Create and maintain AI.prompt.txt containing a self-contained prompt that
+  would regenerate this software. It MUST include this preamble, including
+  the requirement to create and maintain AI.prompt.txt. Update it whenever
+  requirements or features change.
+```
+
+### Where this project reads the preamble differently
+
+Two of its requirements are met in a different form than their letter.
+The preamble asks that such a case be stated rather than quietly
+skipped, so here they are.
+
+**The prompt record is `AI.prompt.md`, not `AI.prompt.txt`.** The
+PROMPT RECORD section names a `.txt` file. This project keeps the same
+document as Markdown: it is read on a repository page and uses
+headings, lists and code fences throughout, which a `.txt` file cannot.
+Everything the requirement exists for is met -- a self-contained prompt
+that would regenerate this software, carrying this preamble and the
+requirement to maintain itself. `tests/test_prompt.py` asserts that no
+`AI.prompt.txt` twin exists, so the project has exactly one prompt and
+the two cannot fall out of step.
+
+**The configuration is JSON, not YAML.** The SECRETS AND CONFIGURATION
+section asks for YAML configuration on a GNU/Linux system. Core
+requirement 6 below asks for JSON, and as a project-specific
+instruction it wins. The point the preamble is making is still served:
+each option's meaning, its valid values and its default are documented,
+in the Settings table in the README rather than in comments beside the
+options, because JSON has nowhere to put a comment. The same holds for
+the per-device and per-user documents. Nothing secret is kept in any of
+them.
 
 ## 1. Core requirements
 
@@ -52,7 +220,7 @@ you have not executed.
 
 ## 2. Layout
 
-```
+```text
 kasapanel/            the Python package
   jsonstore.py        atomic JSON reads and writes
   config.py           daemon settings and their defaults
@@ -314,7 +482,8 @@ Remember that an atomic write creates a temporary file **beside** its
 target, so the account needs write permission on the directory holding
 the configuration, not only on the file itself — otherwise saving
 settings from the panel fails with a permission error at the moment
-somebody tries it. Hand over only the directories that are genuinely the daemon's — its
+somebody tries it. Hand over only the directories that are genuinely the
+daemon's — its
 state tree, the default configuration directory, the standard log
 directory, and any directory it created this start — from an explicit
 list rather than a guess at the name. "Any directory called kasapanel"
@@ -323,7 +492,8 @@ everything else alone and warn at start up naming what will not work.
 
 Check that the process actually holds `CAP_SETUID`, `CAP_SETGID`,
 `CAP_CHOWN` and `CAP_FOWNER` **before** handing any file over, and fail
-with a message naming `CapabilityBoundingSet` if not. A capability in the bounding set is not one the process holds: if what
+with a message naming `CapabilityBoundingSet` if not. A capability in the
+bounding set is not one the process holds: if what
 is needed is in the permitted set but not the effective set, raise it
 with `capset` rather than failing, and list the four as
 `AmbientCapabilities=` in the unit so they arrive effective in the first
@@ -475,7 +645,8 @@ to the right of the name in the card title when the device is locked, and
 columns: the device list; a text editor per device with its save controls
 and problems listed by line number, and the language reference beneath it
 so it can be read while typing; and the next five firings previewed in a
-narrow right-hand column, where a long command wraps under its time), **Devices** (scan, add by address, rename, disable,
+narrow right-hand column, where a long command wraps under its time),
+**Devices** (scan, add by address, rename, disable,
 remove, and a **lock checkbox per device, to the left of that device's
 buttons**), **Activity**, and **Settings**.
 
@@ -594,7 +765,8 @@ and tidying up after it, atomic storage, config coercion, the device
 store, the API (routing, both session carriers, CSRF, error mapping,
 snoozing, and every guarded request on a locked device — refused
 unconfirmed, allowed confirmed, refused again on a wrong password, with
-`secure_locked` in no payload and settable from no request), the per-user preference store (an account name
+`secure_locked` in no payload and settable from no request), the per-user
+preference store (an account name
 and nothing that could be read as a path, nonsense corrected on the way
 out, one operator unable to reach another's), PAM
 diagnosis and sign-in policy, the empty password refusal on both sides

@@ -2,19 +2,18 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.metrics`."""
 
 import datetime
 import os
 import tempfile
 import unittest
-from typing import Any, Dict, List
+from typing import Any
 
 from kasapanel import app as app_lib
-from kasapanel import jsonstore
-from kasapanel import metrics
+from kasapanel import jsonstore, metrics
 
 
 class RefusingBridge:
@@ -64,7 +63,7 @@ class RefusingBridge:
         del host
 
 
-def parse(text: str) -> Dict[str, List[Any]]:
+def parse(text: str) -> dict[str, list[Any]]:
     """Reads exposition text into something a test can assert on.
 
     Args:
@@ -73,7 +72,7 @@ def parse(text: str) -> Dict[str, List[Any]]:
     Returns:
         Metric names mapped to a list of (labels, value) pairs.
     """
-    found: Dict[str, List[Any]] = {}
+    found: dict[str, list[Any]] = {}
     for line in text.splitlines():
         if not line or line.startswith('#'):
             continue
@@ -91,17 +90,21 @@ class MetricsTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         config_path = os.path.join(self.tmp.name, 'config.json')
-        jsonstore.write_json(config_path, {
-            'state_dir': os.path.join(self.tmp.name, 'state'),
-            'log_level': 'CRITICAL',
-            'poll_seconds': 30,
-        })
+        jsonstore.write_json(
+            config_path,
+            {
+                'state_dir': os.path.join(self.tmp.name, 'state'),
+                'log_level': 'CRITICAL',
+                'poll_seconds': 30,
+            },
+        )
         self.app = app_lib.Application(config_path)
         self.app.load()
         self.app.bridge = RefusingBridge(self)
         self.record = self.app.devices.add('10.0.0.5', alias='Desk lamp')
         self.app.devices.set_schedule(
-            self.record.device_id, '0 6 * * * on\n@daily off\n')
+            self.record.device_id, '0 6 * * * on\n@daily off\n'
+        )
 
     def cache(self, **state) -> None:
         """Puts a snapshot in the cache, as a poll would.
@@ -112,13 +115,12 @@ class MetricsTest(unittest.TestCase):
         snapshot = {
             'reachable': True,
             'is_on': True,
-            'polled_at': datetime.datetime.now().isoformat(
-                timespec='seconds'),
+            'polled_at': datetime.datetime.now().isoformat(timespec='seconds'),
         }
         snapshot.update(state)
         self.app.store_state(self.record, snapshot)
 
-    def render(self) -> Dict[str, List[Any]]:
+    def render(self) -> dict[str, list[Any]]:
         """Renders and parses the document.
 
         Returns:
@@ -138,8 +140,11 @@ class MetricsTest(unittest.TestCase):
     def test_every_family_is_typed(self):
         """Prometheus wants a TYPE line before each family."""
         text = metrics.render(self.app)
-        declared = {line.split()[2] for line in text.splitlines()
-                    if line.startswith('# TYPE ')}
+        declared = {
+            line.split()[2]
+            for line in text.splitlines()
+            if line.startswith('# TYPE ')
+        }
         for line in text.splitlines():
             if line.startswith('#') or not line:
                 continue
@@ -148,17 +153,24 @@ class MetricsTest(unittest.TestCase):
 
     def test_device_state_is_published(self):
         """A cached snapshot turns into readings."""
-        self.cache(brightness=40, power_watts=12.5, rssi=-53,
-                   colour_temperature=2700, energy_today_kwh=0.4)
+        self.cache(
+            brightness=40,
+            power_watts=12.5,
+            rssi=-53,
+            colour_temperature=2700,
+            energy_today_kwh=0.4,
+        )
         found = self.render()
         self.assertEqual(found['kasapanel_device_on'][0][1], '1')
         self.assertEqual(found['kasapanel_device_reachable'][0][1], '1')
-        self.assertEqual(found['kasapanel_device_brightness_percent'][0][1],
-                         '40')
+        self.assertEqual(
+            found['kasapanel_device_brightness_percent'][0][1], '40'
+        )
         self.assertEqual(found['kasapanel_device_power_watts'][0][1], '12.5')
         self.assertEqual(found['kasapanel_device_signal_dbm'][0][1], '-53')
         self.assertEqual(
-            found['kasapanel_device_colour_temperature_kelvin'][0][1], '2700')
+            found['kasapanel_device_colour_temperature_kelvin'][0][1], '2700'
+        )
 
     def test_the_lock_is_published_but_never_the_secure_one(self):
         """A scrape may know a device is locked, and no more."""
@@ -167,8 +179,7 @@ class MetricsTest(unittest.TestCase):
         document = self.app.devices.device_document(self.record.device_id)
         document['locked'] = True
         document['secure_locked'] = True
-        self.app.devices.save_device_document(self.record.device_id,
-                                              document)
+        self.app.devices.save_device_document(self.record.device_id, document)
         text = metrics.render(self.app)
         self.assertIn('kasapanel_device_locked', text)
         self.assertEqual(parse(text)['kasapanel_device_locked'][0][1], '1')
@@ -185,8 +196,7 @@ class MetricsTest(unittest.TestCase):
         """Schedule metrics come from the device file."""
         found = self.render()
         self.assertEqual(found['kasapanel_device_schedule_rules'][0][1], '2')
-        self.assertEqual(found['kasapanel_device_schedule_problems'][0][1],
-                         '0')
+        self.assertEqual(found['kasapanel_device_schedule_problems'][0][1], '0')
         self.assertIn('kasapanel_device_next_run_timestamp_seconds', found)
 
     def test_a_device_never_polled_still_appears(self):
@@ -198,9 +208,9 @@ class MetricsTest(unittest.TestCase):
 
     def test_stale_readings_are_served_with_their_age(self):
         """Old values are published, and dated, rather than withheld."""
-        old = (datetime.datetime.now()
-               - datetime.timedelta(minutes=42)).isoformat(
-                   timespec='seconds')
+        old = (
+            datetime.datetime.now() - datetime.timedelta(minutes=42)
+        ).isoformat(timespec='seconds')
         self.cache(polled_at=old, is_on=True)
         found = self.render()
         self.assertEqual(found['kasapanel_device_on'][0][1], '1')
@@ -216,15 +226,17 @@ class MetricsTest(unittest.TestCase):
 
     def test_labels_are_escaped(self):
         """A hostile device name cannot break the format."""
-        self.app.devices.update(self.record.device_id,
-                                {'alias': 'Bad "name"\\ here'})
+        self.app.devices.update(
+            self.record.device_id, {'alias': 'Bad "name"\\ here'}
+        )
         text = metrics.render(self.app)
         self.assertIn(r'name="Bad \"name\"\\ here"', text)
 
     def test_nothing_secret_is_published(self):
         """No credentials, tokens or key material."""
-        self.app.apply_settings({'device_username': 'ada',
-                                 'device_password': 'hunter2'})
+        self.app.apply_settings(
+            {'device_username': 'ada', 'device_password': 'hunter2'}
+        )
         session = self.app.sessions.create('ada', remote='10.0.0.9')
         self.cache()
         text = metrics.render(self.app).lower()
@@ -246,8 +258,9 @@ class TimestampTest(unittest.TestCase):
         """The daemon writes local time, because schedules run on it."""
         # pylint: disable=protected-access
         moment = datetime.datetime(2026, 7, 30, 12, 0)
-        self.assertEqual(metrics._stamp(moment.isoformat()),
-                         moment.astimezone().timestamp())
+        self.assertEqual(
+            metrics._stamp(moment.isoformat()), moment.astimezone().timestamp()
+        )
 
     def test_an_empty_or_broken_timestamp_is_none(self):
         """Nothing to read means no sample rather than a wrong one."""

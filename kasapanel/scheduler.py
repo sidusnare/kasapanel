@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """The scheduling thread.
 
 The scheduler wakes a moment after every minute boundary, reads each
@@ -20,10 +20,9 @@ import concurrent.futures
 import datetime
 import logging
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from kasapanel import devicestore
-from kasapanel import kasabridge
+from kasapanel import devicestore, kasabridge
 from kasapanel import schedule as schedule_lib
 from kasapanel import snooze as snooze_lib
 
@@ -39,9 +38,13 @@ MAX_PARALLEL_DEVICES = 8
 class Scheduler:
     """Runs per-device schedule scripts once a minute."""
 
-    def __init__(self, store: devicestore.DeviceStore,
-                 bridge: kasabridge.DeviceBridge, activity: Any,
-                 settings: Any):
+    def __init__(
+        self,
+        store: devicestore.DeviceStore,
+        bridge: kasabridge.DeviceBridge,
+        activity: Any,
+        settings: Any,
+    ):
         """Initialises the scheduler.
 
         Args:
@@ -55,10 +58,10 @@ class Scheduler:
         self._activity = activity
         self._settings = settings
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
-        self._fired: Dict[Tuple[str, int], str] = {}
-        self._last_tick: Optional[datetime.datetime] = None
+        self._fired: dict[tuple[str, int], str] = {}
+        self._last_tick: datetime.datetime | None = None
         self._runs = 0
 
     def update_settings(self, settings: Any) -> None:
@@ -74,7 +77,7 @@ class Scheduler:
         """Returns whether schedules are allowed to run at all."""
         return bool(getattr(self._settings, 'scheduler_enabled', True))
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Returns a JSON friendly view of the scheduler state."""
         with self._lock:
             last = self._last_tick
@@ -92,7 +95,8 @@ class Scheduler:
             return
         self._stop.clear()
         self._thread = threading.Thread(
-            target=self._serve, name='kasa-scheduler', daemon=True)
+            target=self._serve, name='kasa-scheduler', daemon=True
+        )
         self._thread.start()
         _LOG.info('scheduler started')
 
@@ -120,8 +124,10 @@ class Scheduler:
             except Exception as err:  # pylint: disable=broad-except
                 _LOG.exception('scheduler tick failed: %s', err)
                 self._activity.add(
-                    f'Schedule check failed: {err}', level='error',
-                    source='schedule')
+                    f'Schedule check failed: {err}',
+                    level='error',
+                    source='schedule',
+                )
 
     @staticmethod
     def _seconds_to_next_minute() -> float:
@@ -132,7 +138,7 @@ class Scheduler:
 
     def _device_entries(
         self, record: devicestore.DeviceRecord, moment: datetime.datetime
-    ) -> List[schedule_lib.ScheduleEntry]:
+    ) -> list[schedule_lib.ScheduleEntry]:
         """Reads and parses the schedule script of one device.
 
         Args:
@@ -149,16 +155,23 @@ class Scheduler:
         if self._snoozed(record, document, moment):
             return []
         entries, problems = schedule_lib.parse_script(
-            document.get('schedule', ''))
+            document.get('schedule', '')
+        )
         for problem in problems:
-            _LOG.warning('%s: schedule line %d is invalid: %s',
-                         record.display_name, problem.line_number,
-                         problem.message)
+            _LOG.warning(
+                '%s: schedule line %d is invalid: %s',
+                record.display_name,
+                problem.line_number,
+                problem.message,
+            )
         return entries
 
-    def _snoozed(self, record: devicestore.DeviceRecord,
-                 document: Dict[str, Any],
-                 moment: datetime.datetime) -> bool:
+    def _snoozed(
+        self,
+        record: devicestore.DeviceRecord,
+        document: dict[str, Any],
+        moment: datetime.datetime,
+    ) -> bool:
         """Says whether a device's schedule is snoozed for this minute.
 
         A snooze that has run out is removed and the resumption noted,
@@ -175,11 +188,15 @@ class Scheduler:
         if snooze_lib.active_until(document.get('snoozed_until'), moment):
             return True
         if document.get('snoozed_until') and self._store.unsnooze(
-                record.device_id, ended_by=moment):
+            record.device_id, ended_by=moment
+        ):
             _LOG.info('%s: schedule snooze ended', record.display_name)
             self._activity.add(
-                'Schedule snooze ended; rules run again', source='schedule',
-                device_id=record.device_id, device_name=record.display_name)
+                'Schedule snooze ended; rules run again',
+                source='schedule',
+                device_id=record.device_id,
+                device_name=record.display_name,
+            )
         return False
 
     def run_minute(self, moment: datetime.datetime) -> int:
@@ -199,7 +216,9 @@ class Scheduler:
             if gap > 90:
                 _LOG.warning(
                     'the scheduler missed %d minute(s); rules due in that '
-                    'window did not run', int(gap // 60) - 1)
+                    'window did not run',
+                    int(gap // 60) - 1,
+                )
         if not self.enabled:
             return 0
         stamp = moment.isoformat(timespec='minutes')
@@ -219,8 +238,7 @@ class Scheduler:
 
     def _dispatch(
         self,
-        work: List[Tuple[devicestore.DeviceRecord,
-                         schedule_lib.ScheduleEntry]],
+        work: list[tuple[devicestore.DeviceRecord, schedule_lib.ScheduleEntry]],
     ) -> None:
         """Runs a batch of due rules in a small thread pool.
 
@@ -231,13 +249,16 @@ class Scheduler:
             return
         workers = min(MAX_PARALLEL_DEVICES, len(work))
         with concurrent.futures.ThreadPoolExecutor(
-                max_workers=workers,
-                thread_name_prefix='kasa-rule') as pool:
+            max_workers=workers, thread_name_prefix='kasa-rule'
+        ) as pool:
             for record, entry in work:
                 pool.submit(self._run_entry, record, entry)
 
-    def _run_entry(self, record: devicestore.DeviceRecord,
-                   entry: schedule_lib.ScheduleEntry) -> None:
+    def _run_entry(
+        self,
+        record: devicestore.DeviceRecord,
+        entry: schedule_lib.ScheduleEntry,
+    ) -> None:
         """Runs one rule and records the outcome.
 
         Args:
@@ -247,18 +268,24 @@ class Scheduler:
         label = f'line {entry.line_number}: {entry.command}'
         try:
             result = self._bridge.run_action(
-                record, entry.action, list(entry.arguments))
+                record, entry.action, list(entry.arguments)
+            )
         except kasabridge.BridgeError as err:
-            _LOG.warning('%s: %s failed: %s',
-                         record.display_name, label, err)
+            _LOG.warning('%s: %s failed: %s', record.display_name, label, err)
             self._activity.add(
-                f'{label} failed: {err}', level='error', source='schedule',
+                f'{label} failed: {err}',
+                level='error',
+                source='schedule',
                 device_id=record.device_id,
-                device_name=record.display_name)
+                device_name=record.display_name,
+            )
             return
         with self._lock:
             self._runs += 1
         _LOG.info('%s: %s -> %s', record.display_name, label, result)
         self._activity.add(
-            f'{label} -> {result}', source='schedule',
-            device_id=record.device_id, device_name=record.display_name)
+            f'{label} -> {result}',
+            source='schedule',
+            device_id=record.device_id,
+            device_name=record.display_name,
+        )

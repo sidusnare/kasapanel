@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Picks up a renewed TLS certificate without restarting the daemon.
 
 Certificates are renewed by something else -- certbot, a company CA, a
@@ -34,7 +34,8 @@ import logging
 import ssl
 import subprocess
 import threading
-from typing import Any, Callable, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ MAX_IDLE_SECONDS = 60 * 60
 try:  # pragma: no cover - depends on the host having cryptography.
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes
+
     CRYPTOGRAPHY_AVAILABLE = True
 except ImportError:  # pragma: no cover
     x509 = None
@@ -63,7 +65,7 @@ class CertificateError(Exception):
     """Raised when a certificate file cannot be read or understood."""
 
 
-def describe(path: str) -> Tuple[str, Optional[datetime.datetime]]:
+def describe(path: str) -> tuple[str, datetime.datetime | None]:
     """Reads the fingerprint and expiry of a certificate file.
 
     Args:
@@ -91,7 +93,8 @@ def describe(path: str) -> Tuple[str, Optional[datetime.datetime]]:
 
 
 def _describe_with_cryptography(
-        data: bytes, path: str) -> Tuple[str, Optional[datetime.datetime]]:
+    data: bytes, path: str
+) -> tuple[str, datetime.datetime | None]:
     """Parses a certificate with the cryptography package.
 
     Args:
@@ -107,18 +110,19 @@ def _describe_with_cryptography(
     try:
         certificate = x509.load_pem_x509_certificate(data)
     except ValueError as error:
-        raise CertificateError(f'{path} is not a certificate: '
-                               f'{error}') from error
+        raise CertificateError(
+            f'{path} is not a certificate: {error}'
+        ) from error
     fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
     expires = getattr(certificate, 'not_valid_after_utc', None)
     if expires is None:  # cryptography older than 42
         expires = certificate.not_valid_after.replace(
-            tzinfo=datetime.timezone.utc)
+            tzinfo=datetime.timezone.utc
+        )
     return fingerprint, expires
 
 
-def _describe_with_openssl(
-        path: str) -> Tuple[str, Optional[datetime.datetime]]:
+def _describe_with_openssl(path: str) -> tuple[str, datetime.datetime | None]:
     """Parses a certificate by shelling out to openssl.
 
     Args:
@@ -132,12 +136,22 @@ def _describe_with_openssl(
     """
     try:
         result = subprocess.run(
-            ['openssl', 'x509', '-in', path, '-noout', '-enddate',
-             '-fingerprint', '-sha256'],
-            check=True, capture_output=True, text=True)
+            [
+                'openssl',
+                'x509',
+                '-in',
+                path,
+                '-noout',
+                '-enddate',
+                '-fingerprint',
+                '-sha256',
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
     except (OSError, subprocess.CalledProcessError) as error:
-        raise CertificateError(
-            f'cannot inspect {path}: {error}') from error
+        raise CertificateError(f'cannot inspect {path}: {error}') from error
     fingerprint = ''
     expires = None
     for line in result.stdout.splitlines():
@@ -145,8 +159,8 @@ def _describe_with_openssl(
             stamp = line.split('=', 1)[1].strip()
             try:
                 expires = datetime.datetime.strptime(
-                    stamp, '%b %d %H:%M:%S %Y %Z').replace(
-                        tzinfo=datetime.timezone.utc)
+                    stamp, '%b %d %H:%M:%S %Y %Z'
+                ).replace(tzinfo=datetime.timezone.utc)
             except ValueError:
                 expires = None
         elif '=' in line and 'Fingerprint' in line:
@@ -168,8 +182,14 @@ def summarise(path: str) -> dict:
         the page can still render.
     """
     summary = {
-        'path': path, 'subject': '', 'issuer': '', 'fingerprint': '',
-        'not_before': '', 'expires': '', 'self_signed': None, 'error': '',
+        'path': path,
+        'subject': '',
+        'issuer': '',
+        'fingerprint': '',
+        'not_before': '',
+        'expires': '',
+        'self_signed': None,
+        'error': '',
     }
     try:
         fingerprint, expires = describe(path)
@@ -192,16 +212,22 @@ def summarise(path: str) -> dict:
     starts = getattr(certificate, 'not_valid_before_utc', None)
     if starts is None:  # pragma: no cover - cryptography older than 42
         starts = certificate.not_valid_before.replace(
-            tzinfo=datetime.timezone.utc)
+            tzinfo=datetime.timezone.utc
+        )
     summary['not_before'] = starts.isoformat()
     names = []
     try:
         extension = certificate.extensions.get_extension_for_class(
-            x509.SubjectAlternativeName)
-        names = [str(name) for name
-                 in extension.value.get_values_for_type(x509.DNSName)]
-        names += [str(address) for address
-                  in extension.value.get_values_for_type(x509.IPAddress)]
+            x509.SubjectAlternativeName
+        )
+        names = [
+            str(name)
+            for name in extension.value.get_values_for_type(x509.DNSName)
+        ]
+        names += [
+            str(address)
+            for address in extension.value.get_values_for_type(x509.IPAddress)
+        ]
     except x509.ExtensionNotFound:  # pragma: no cover
         pass
     summary['names'] = names
@@ -218,6 +244,7 @@ def _common_name(name: Any) -> str:
         The common name, or the whole name when there is none.
     """
     from cryptography.x509.oid import NameOID  # pylint: disable=C0415
+
     found = name.get_attributes_for_oid(NameOID.COMMON_NAME)
     if found:
         return str(found[0].value)
@@ -227,9 +254,13 @@ def _common_name(name: Any) -> str:
 class CertificateWatcher:
     """Watches the certificate file and re-keys the server when it moves."""
 
-    def __init__(self, settings: Any, context: ssl.SSLContext,
-                 activity: Any = None,
-                 clock: Callable[[], datetime.datetime] = None):
+    def __init__(
+        self,
+        settings: Any,
+        context: ssl.SSLContext,
+        activity: Any = None,
+        clock: Callable[[], datetime.datetime] | None = None,
+    ):
         """Prepares the watcher without starting it.
 
         Args:
@@ -244,13 +275,14 @@ class CertificateWatcher:
         self._context = context
         self._activity = activity
         self._clock = clock or (
-            lambda: datetime.datetime.now(datetime.timezone.utc))
+            lambda: datetime.datetime.now(datetime.timezone.utc)
+        )
         self._stop = threading.Event()
         self._wake = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self.fingerprint = ''
-        self.expires: Optional[datetime.datetime] = None
+        self.expires: datetime.datetime | None = None
         self.reloads = 0
         self.last_error = ''
 
@@ -281,10 +313,13 @@ class CertificateWatcher:
             return
         self._stop.clear()
         self._thread = threading.Thread(
-            target=self._serve, name='kasa-certwatch', daemon=True)
+            target=self._serve, name='kasa-certwatch', daemon=True
+        )
         self._thread.start()
-        _LOG.info('certificate watch started; live certificate expires %s',
-                  self.expires.isoformat() if self.expires else 'unknown')
+        _LOG.info(
+            'certificate watch started; live certificate expires %s',
+            self.expires.isoformat() if self.expires else 'unknown',
+        )
 
     def stop(self, timeout: float = 5.0) -> None:
         """Stops the watching thread.
@@ -303,7 +338,7 @@ class CertificateWatcher:
         """Asks the thread to compare the files immediately."""
         self._wake.set()
 
-    def interval(self, now: datetime.datetime = None) -> float:
+    def interval(self, now: datetime.datetime | None = None) -> float:
         """Returns how long to wait before the next comparison.
 
         Args:
@@ -325,7 +360,7 @@ class CertificateWatcher:
         until_window = (remaining - WATCH_WINDOW).total_seconds()
         return min(until_window, MAX_IDLE_SECONDS)
 
-    def watching(self, now: datetime.datetime = None) -> bool:
+    def watching(self, now: datetime.datetime | None = None) -> bool:
         """Says whether the certificate is close enough to look at.
 
         Args:
@@ -362,8 +397,13 @@ class CertificateWatcher:
         _LOG.info('the certificate file at %s has changed; loading it', path)
         return self._reload(path, key, fingerprint, expires)
 
-    def _reload(self, path: str, key: str, fingerprint: str,
-                expires: Optional[datetime.datetime]) -> bool:
+    def _reload(
+        self,
+        path: str,
+        key: str,
+        fingerprint: str,
+        expires: datetime.datetime | None,
+    ) -> bool:
         """Loads a new certificate into the live TLS context.
 
         Args:
@@ -388,7 +428,8 @@ class CertificateWatcher:
         except (ssl.SSLError, OSError, ValueError) as error:
             self._note_error(
                 f'certificate watch: {path} and {key} are not a usable '
-                f'pair, keeping the current certificate: {error}')
+                f'pair, keeping the current certificate: {error}'
+            )
             return False
         with self._lock:
             try:
@@ -396,19 +437,25 @@ class CertificateWatcher:
             except (ssl.SSLError, OSError, ValueError) as error:
                 self._note_error(
                     f'certificate watch: {path} could not be loaded, '
-                    f'keeping the current certificate: {error}')
+                    f'keeping the current certificate: {error}'
+                )
                 return False
             self.fingerprint = fingerprint
             self.expires = expires
             self.reloads += 1
             self.last_error = ''
         when = expires.isoformat() if expires else 'unknown'
-        _LOG.warning('TLS certificate replaced without a restart; '
-                     'new certificate expires %s', when)
+        _LOG.warning(
+            'TLS certificate replaced without a restart; '
+            'new certificate expires %s',
+            when,
+        )
         if self._activity is not None:
             self._activity.add(
                 f'Loaded a new TLS certificate, valid until {when}',
-                level='info', source='tls')
+                level='info',
+                source='tls',
+            )
         return True
 
     def _note_error(self, message: str) -> None:

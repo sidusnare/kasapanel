@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-// see docs/ai-bom.spdx.json for the AI usage declaration.
+// SPDX-FileContributor: Claude Opus 5 (AI-generated)
+// AI usage declaration: docs/ai-bom.spdx.json
 
 // A stand-in daemon.  It answers with payloads recorded from the real
 // API, and — this is the point of it — it refuses any request that does
@@ -23,11 +23,17 @@ export function fixture(name) {
 
 // The daemon's own zone, or the one this machine keeps, so a test can
 // mount a panel whose browser agrees with the daemon about the clock.
-function localZone() {
-  const minutes = -new Date().getTimezoneOffset();
+// The offset has to be read at the instant the fixture describes, not
+// at the moment the test happens to run.  A host in a zone that keeps
+// summer time is on one offset in July and another in November, and
+// comparing the two makes the panel believe the browser sits in a
+// different zone than the daemon.
+function localZone(stamp) {
+  const at = stamp ? new Date(stamp) : new Date();
+  const minutes = -at.getTimezoneOffset();
   const pad = (value) => String(Math.abs(value)).padStart(2, '0');
   const parts = new Intl.DateTimeFormat(undefined, {timeZoneName: 'short'})
-    .formatToParts(new Date());
+    .formatToParts(at);
   return {
     server_utc_offset: `${minutes < 0 ? '-' : '+'}`
       + `${pad(Math.trunc(minutes / 60))}:${pad(minutes % 60)}`,
@@ -150,7 +156,7 @@ export function createServer({acceptCookie = true, lastResort = false,
     if (pathname === '/api/dashboard') {
       const payload = fixture('dashboard');
       const summary = hostZone === 'local'
-        ? {...payload.summary, ...localZone()}
+        ? {...payload.summary, ...localZone(payload.summary.server_time)}
         : payload.summary;
       return reply(200, {...payload, summary, devices,
         daemon_user: account});

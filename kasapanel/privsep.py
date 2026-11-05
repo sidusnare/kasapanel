@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Privilege separation for the parts that need to stay privileged.
 
 PAM has to read the shadow file, which means root.  Nothing else here
@@ -32,6 +32,7 @@ to fork, and before the listening socket is created, so the helper never
 holds one.
 """
 
+import contextlib
 import ctypes
 import errno
 import grp
@@ -43,7 +44,7 @@ import signal
 import socket
 import struct
 import threading
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ class HelperError(Exception):
     """Raised when the authentication helper cannot answer."""
 
 
-def effective_capabilities() -> Optional[int]:
+def effective_capabilities() -> int | None:
     """Reads the effective capability set of this process.
 
     Returns:
@@ -113,12 +114,14 @@ class _CapHeader(ctypes.Structure):
 class _CapData(ctypes.Structure):
     """One 32 bit slice of the three capability sets."""
 
-    _fields_ = [('effective', ctypes.c_uint32),
-                ('permitted', ctypes.c_uint32),
-                ('inheritable', ctypes.c_uint32)]
+    _fields_ = [
+        ('effective', ctypes.c_uint32),
+        ('permitted', ctypes.c_uint32),
+        ('inheritable', ctypes.c_uint32),
+    ]
 
 
-def raise_effective(names: List[str]) -> List[str]:
+def raise_effective(names: list[str]) -> list[str]:
     """Moves capabilities the process holds into its effective set.
 
     A capability in the permitted set but not the effective set cannot
@@ -134,8 +137,11 @@ def raise_effective(names: List[str]) -> List[str]:
         The names that were raised, empty when nothing needed raising
         or the raise failed.
     """
-    wanted = [NEEDED_CAPABILITIES[name][0] for name in names
-              if name in NEEDED_CAPABILITIES]
+    wanted = [
+        NEEDED_CAPABILITIES[name][0]
+        for name in names
+        if name in NEEDED_CAPABILITIES
+    ]
     if not wanted:
         return []
     try:
@@ -150,7 +156,7 @@ def raise_effective(names: List[str]) -> List[str]:
             slot, offset = divmod(bit, 32)
             if not data[slot].permitted & (1 << offset):
                 continue  # Not ours to take.
-            data[slot].effective |= (1 << offset)
+            data[slot].effective |= 1 << offset
             raised.append(name)
         if not raised:
             return []
@@ -188,7 +194,7 @@ def clear_capabilities() -> bool:
     return held == 0 or held is None
 
 
-def privilege_report() -> Dict[str, Any]:
+def privilege_report() -> dict[str, Any]:
     """Collects everything that decides whether a drop can work.
 
     Four things can stop a uid 0 process becoming somebody else, and
@@ -200,10 +206,14 @@ def privilege_report() -> Dict[str, Any]:
     Returns:
         A mapping of what the kernel says about this process.
     """
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         'uid': os.getuid(),
-        'cap_effective': '', 'cap_permitted': '', 'cap_bounding': '',
-        'no_new_privs': '', 'seccomp': '', 'user_namespace': False,
+        'cap_effective': '',
+        'cap_permitted': '',
+        'cap_bounding': '',
+        'no_new_privs': '',
+        'seccomp': '',
+        'user_namespace': False,
         'uid_map': '',
     }
     fields = {
@@ -227,8 +237,7 @@ def privilege_report() -> Dict[str, Any]:
         report['uid_map'] = mapping
         # The identity map is what an unconfined process has; anything
         # else means a user namespace, where most uids do not exist.
-        report['user_namespace'] = (
-            mapping.split() != ['0', '0', '4294967295'])
+        report['user_namespace'] = mapping.split() != ['0', '0', '4294967295']
     except OSError:  # pragma: no cover
         pass
     return report
@@ -247,12 +256,14 @@ def describe_privileges() -> str:
     barred = report['no_new_privs']
     filtered = report['seccomp']
     namespaced = 'yes' if report['user_namespace'] else 'no'
-    return (f'uid={uid} CapEff={effective} CapBnd={bounding} '
-            f'NoNewPrivs={barred} Seccomp={filtered} '
-            f'userns={namespaced}')
+    return (
+        f'uid={uid} CapEff={effective} CapBnd={bounding} '
+        f'NoNewPrivs={barred} Seccomp={filtered} '
+        f'userns={namespaced}'
+    )
 
 
-def missing_capabilities() -> List[str]:
+def missing_capabilities() -> list[str]:
     """Lists the capabilities a privileged start needs but lacks.
 
     Returns:
@@ -262,11 +273,14 @@ def missing_capabilities() -> List[str]:
     held = effective_capabilities()
     if held is None:
         return []
-    return sorted(name for name, (bit, _) in NEEDED_CAPABILITIES.items()
-                  if not held & (1 << bit))
+    return sorted(
+        name
+        for name, (bit, _) in NEEDED_CAPABILITIES.items()
+        if not held & (1 << bit)
+    )
 
 
-def capability_advice(missing: List[str]) -> str:
+def capability_advice(missing: list[str]) -> str:
     """Explains a missing capability in terms of the unit file.
 
     Running as uid 0 is not the same as being able to act as root: a
@@ -286,14 +300,16 @@ def capability_advice(missing: List[str]) -> str:
         return ''
     wanted = ' '.join(sorted(NEEDED_CAPABILITIES))
     reasons = ', '.join(
-        f'{name} to {NEEDED_CAPABILITIES[name][1]}' for name in missing)
+        f'{name} to {NEEDED_CAPABILITIES[name][1]}' for name in missing
+    )
     absent = ', '.join(missing)
     return (
         f'this process is uid 0 but does not hold {absent}, '
         f'so it cannot {reasons}. Under systemd this is almost always '
         f'CapabilityBoundingSet in the unit file: it must include '
         f'{wanted}. Check with: systemctl show kasapanel '
-        '-p CapabilityBoundingSet')
+        '-p CapabilityBoundingSet'
+    )
 
 
 def capability_report() -> str:
@@ -310,8 +326,7 @@ def capability_report() -> str:
     try:
         with open('/proc/self/status', encoding='utf-8') as handle:
             for line in handle:
-                for name in ('CapInh', 'CapPrm', 'CapEff', 'CapBnd',
-                             'CapAmb'):
+                for name in ('CapInh', 'CapPrm', 'CapEff', 'CapBnd', 'CapAmb'):
                     if line.startswith(name + ':'):
                         sets[name] = line.split()[1]
     except OSError:  # pragma: no cover
@@ -344,16 +359,19 @@ def check_can_drop() -> None:
         # entitled to draw on.  Take them before complaining.
         raised = raise_effective(missing)
         if raised:
-            _LOG.info('raised %s from the permitted set into the '
-                      'effective set', ', '.join(raised))
+            _LOG.info(
+                'raised %s from the permitted set into the effective set',
+                ', '.join(raised),
+            )
             missing = missing_capabilities()
     if missing:
         raise PrivilegeError(
             f'{capability_advice(missing)} [{describe_privileges()}] '
-            f'[{capability_report()}]')
+            f'[{capability_report()}]'
+        )
 
 
-def resolve_user(configured: str) -> Tuple[pwd.struct_passwd, bool]:
+def resolve_user(configured: str) -> tuple[pwd.struct_passwd, bool]:
     """Chooses the account the daemon should run as.
 
     A configured name must exist; falling back from it silently would
@@ -399,8 +417,10 @@ def resolve_user(configured: str) -> Tuple[pwd.struct_passwd, bool]:
             'set daemon_user in the configuration to an unprivileged '
             'account'
         ) from error
-    _LOG.warning('falling back to "%s"; set daemon_user to a dedicated '
-                 'account instead', LAST_RESORT_USER)
+    _LOG.warning(
+        'falling back to "%s"; set daemon_user to a dedicated account instead',
+        LAST_RESORT_USER,
+    )
     return record, True
 
 
@@ -425,7 +445,8 @@ def _refuse_privileged(record: pwd.struct_passwd) -> None:
             f'{record.pw_uid} and gid {record.pw_gid}; the daemon has to '
             'drop to an unprivileged account, or the privileged helper '
             'protects nothing. Create a dedicated account and name that '
-            'instead.')
+            'instead.'
+        )
 
 
 def describe_user(record: pwd.struct_passwd, last_resort: bool) -> dict:
@@ -448,11 +469,13 @@ def describe_user(record: pwd.struct_passwd, last_resort: bool) -> dict:
             'account it does not own. Set a daemon user: create a '
             'dedicated account and put its name in daemon_user below, '
             'then restart the daemon.'
-        ) if last_resort else '',
+        )
+        if last_resort
+        else '',
     }
 
 
-def own_tree(paths: List[str], uid: int, gid: int) -> None:
+def own_tree(paths: list[str], uid: int, gid: int) -> None:
     """Hands files to the daemon account before privileges are dropped.
 
     Args:
@@ -467,8 +490,13 @@ def own_tree(paths: List[str], uid: int, gid: int) -> None:
         try:
             os.chown(path, uid, gid)
         except OSError as error:
-            _LOG.warning('cannot give %s to uid %d: %s%s', path, uid, error,
-                         _chown_hint())
+            _LOG.warning(
+                'cannot give %s to uid %d: %s%s',
+                path,
+                uid,
+                error,
+                _chown_hint(),
+            )
             continue
         if not os.path.isdir(path):
             continue
@@ -477,12 +505,17 @@ def own_tree(paths: List[str], uid: int, gid: int) -> None:
                 try:
                     os.chown(os.path.join(base, name), uid, gid)
                 except OSError as error:
-                    _LOG.warning('cannot give %s to uid %d: %s',
-                                 os.path.join(base, name), uid, error)
+                    _LOG.warning(
+                        'cannot give %s to uid %d: %s',
+                        os.path.join(base, name),
+                        uid,
+                        error,
+                    )
 
 
-def own_directory_if_allowed(path: str, uid: int, gid: int,
-                             allowed: Set[str]) -> bool:
+def own_directory_if_allowed(
+    path: str, uid: int, gid: int, allowed: set[str]
+) -> bool:
     """Hands over a directory, but only one that is genuinely ours.
 
     Writing a file atomically means writing a temporary file beside it
@@ -539,19 +572,22 @@ def refusal_advice(record: pwd.struct_passwd) -> str:
             f'user namespace where {record.pw_name} does not exist. Under '
             f'systemd that is DynamicUser= or PrivateUsers= in the unit; '
             f'neither can be used with a daemon that drops privileges '
-            f'itself. [{state}]')
+            f'itself. [{state}]'
+        )
     if report['seccomp'] not in ('', '0'):
         return (
             'the capabilities needed are held and the account exists, so '
             'the refusal is most likely a seccomp filter blocking the '
             'setuid family. Check SystemCallFilter= in the unit; it must '
-            f'allow @setuid. [{state}]')
+            f'allow @setuid. [{state}]'
+        )
     return (
         'the capabilities needed are held, so the refusal comes from '
         'something outside this daemon: a security module such as '
         'AppArmor or SELinux, or a unit setting that confines the '
         'process. Check "systemctl cat kasapanel" for drop-ins, and the '
-        f'audit log for a denial at this moment. [{state}]')
+        f'audit log for a denial at this moment. [{state}]'
+    )
 
 
 def _chown_hint() -> str:
@@ -560,8 +596,11 @@ def _chown_hint() -> str:
     Returns:
         A short hint, or an empty string when capabilities are fine.
     """
-    missing = [name for name in missing_capabilities()
-               if name in ('CAP_CHOWN', 'CAP_FOWNER')]
+    missing = [
+        name
+        for name in missing_capabilities()
+        if name in ('CAP_CHOWN', 'CAP_FOWNER')
+    ]
     if not missing:
         return ''
     absent = ', '.join(missing)
@@ -599,27 +638,33 @@ def drop_privileges(record: pwd.struct_passwd) -> None:
                 '/etc/systemd/system/kasapanel.service.d/, for '
                 'User= being overridden, or for a security module '
                 '(AppArmor, SELinux) denying the change -- check '
-                '"systemctl cat kasapanel" and the audit log')
+                '"systemctl cat kasapanel" and the audit log'
+            )
         raise PrivilegeError(
             f'cannot become {record.pw_name} (uid {record.pw_uid}): '
-            f'{error}. {advice} [{capability_report()}]') from error
+            f'{error}. {advice} [{capability_report()}]'
+        ) from error
     if os.getuid() != record.pw_uid or os.geteuid() != record.pw_uid:
-        raise PrivilegeError(
-            f'privileges were not dropped to {record.pw_name}')
+        raise PrivilegeError(f'privileges were not dropped to {record.pw_name}')
     try:
         os.setuid(0)
     except OSError:
         pass  # Good: root is gone for this process.
     else:
         raise PrivilegeError(
-            'privileges were dropped but root can still be regained')
+            'privileges were dropped but root can still be regained'
+        )
     clear_capabilities()
     left = effective_capabilities()
     if left:
         _LOG.warning('capabilities remain after dropping: %#x', left)
-    _LOG.info('running as %s (uid %d, gid %d), capabilities %s',
-              record.pw_name, record.pw_uid, record.pw_gid,
-              'cleared' if not left else f'{left:#x}')
+    _LOG.info(
+        'running as %s (uid %d, gid %d), capabilities %s',
+        record.pw_name,
+        record.pw_uid,
+        record.pw_gid,
+        'cleared' if not left else f'{left:#x}',
+    )
 
 
 def _send(sock: socket.socket, payload: dict) -> None:
@@ -639,7 +684,7 @@ def _send(sock: socket.socket, payload: dict) -> None:
         raise HelperError(f'cannot reach the helper: {error}') from error
 
 
-def _receive(sock: socket.socket) -> Optional[dict]:
+def _receive(sock: socket.socket) -> dict | None:
     """Reads one length-prefixed JSON message.
 
     Args:
@@ -666,7 +711,7 @@ def _receive(sock: socket.socket) -> Optional[dict]:
         raise HelperError(f'unreadable message: {error}') from error
 
 
-def _read_exactly(sock: socket.socket, size: int) -> Optional[bytes]:
+def _read_exactly(sock: socket.socket, size: int) -> bytes | None:
     """Reads exactly so many bytes.
 
     Args:
@@ -684,12 +729,12 @@ def _read_exactly(sock: socket.socket, size: int) -> Optional[bytes]:
     while left:
         try:
             piece = sock.recv(left)
-        except socket.timeout as error:
-            raise HelperError(
-                'the helper did not answer in time') from error
+        except TimeoutError as error:
+            raise HelperError('the helper did not answer in time') from error
         except OSError as error:
-            raise HelperError(f'cannot read from the helper: '
-                              f'{error}') from error
+            raise HelperError(
+                f'cannot read from the helper: {error}'
+            ) from error
         if not piece:
             return None
         chunks.append(piece)
@@ -697,7 +742,7 @@ def _read_exactly(sock: socket.socket, size: int) -> Optional[bytes]:
     return b''.join(chunks)
 
 
-def describe_exit(status: Optional[int]) -> str:
+def describe_exit(status: int | None) -> str:
     """Explains how the helper process ended.
 
     Args:
@@ -715,8 +760,10 @@ def describe_exit(status: Optional[int]) -> str:
         except ValueError:  # pragma: no cover - unknown signal number
             name = f'signal {number}'
         if number == signal.SIGKILL:
-            return (f'the helper was killed by {name}, which usually means '
-                    'the out-of-memory killer or an administrator')
+            return (
+                f'the helper was killed by {name}, which usually means '
+                'the out-of-memory killer or an administrator'
+            )
         return f'the helper was killed by {name}'
     code = os.WEXITSTATUS(status)
     if code == 0:
@@ -741,7 +788,7 @@ class AuthHelper:
         self._closed = False
         self._alive = True
         self._expected = False
-        self._watcher: Optional[threading.Thread] = None
+        self._watcher: threading.Thread | None = None
         self.exit_reason = ''
 
     @property
@@ -762,6 +809,7 @@ class AuthHelper:
                 ended.  Not called when the helper was closed on
                 purpose.
         """
+
         def wait() -> None:
             """Blocks until the helper exits, then reports it."""
             status = None
@@ -773,16 +821,19 @@ class AuthHelper:
             self.exit_reason = describe_exit(status)
             if self._expected:
                 return
-            _LOG.critical('authentication helper (pid %d) has gone: %s',
-                          self.pid, self.exit_reason)
+            _LOG.critical(
+                'authentication helper (pid %d) has gone: %s',
+                self.pid,
+                self.exit_reason,
+            )
             on_death(self.exit_reason)
 
         self._watcher = threading.Thread(
-            target=wait, name='kasa-helper-watch', daemon=True)
+            target=wait, name='kasa-helper-watch', daemon=True
+        )
         self._watcher.start()
 
-    def authenticate(self, username: str, password: str,
-                     service: str) -> bool:
+    def authenticate(self, username: str, password: str, service: str) -> bool:
         """Asks the helper to check one password.
 
         Args:
@@ -798,13 +849,21 @@ class AuthHelper:
         """
         if self._closed:
             raise HelperError('the authentication helper has been closed')
-        gone = ('the authentication helper stopped; the daemon must be '
-                'restarted before anyone can sign in')
+        gone = (
+            'the authentication helper stopped; the daemon must be '
+            'restarted before anyone can sign in'
+        )
         with self._lock:
             try:
-                _send(self._sock, {'op': 'auth', 'username': username,
-                                   'password': password,
-                                   'service': service})
+                _send(
+                    self._sock,
+                    {
+                        'op': 'auth',
+                        'username': username,
+                        'password': password,
+                        'service': service,
+                    },
+                )
                 answer = _receive(self._sock)
             except HelperError as error:
                 if 'in time' in str(error):
@@ -829,17 +888,13 @@ class AuthHelper:
             return
         self._expected = True
         self._closed = True
-        try:
+        with contextlib.suppress(OSError):
             self._sock.close()
-        except OSError:
-            pass
         if self._watcher is not None:
             self._watcher.join(timeout=5)
             return
-        try:
+        with contextlib.suppress(OSError):
             os.waitpid(self.pid, 0)
-        except OSError:
-            pass
 
 
 def _serve_helper(sock: socket.socket) -> None:
@@ -896,13 +951,17 @@ def _serve_helper(sock: socket.socket) -> None:
                 # and so does the helper: this is the one process that
                 # can engage PAM, so the rule belongs here too rather
                 # than only on the side that happens to ask politely.
-                auth.refuse_empty_password(
-                    str(request.get('password', '')))
+                auth.refuse_empty_password(str(request.get('password', '')))
                 session = auth.new_authenticator()
-                answer = {'accepted': bool(session.authenticate(
-                    str(request.get('username', '')),
-                    str(request.get('password', '')),
-                    service=str(request.get('service', 'login'))))}
+                answer = {
+                    'accepted': bool(
+                        session.authenticate(
+                            str(request.get('username', '')),
+                            str(request.get('password', '')),
+                            service=str(request.get('service', 'login')),
+                        )
+                    )
+                }
             except TimeoutError as error:
                 answer = {'error': str(error)}
             except auth.AuthError as error:
@@ -920,7 +979,7 @@ def _serve_helper(sock: socket.socket) -> None:
             break
 
 
-def start_helper() -> Optional[AuthHelper]:
+def start_helper() -> AuthHelper | None:
     """Forks the privileged authentication helper.
 
     Call this while still root and before any thread is started: forking
@@ -937,15 +996,17 @@ def start_helper() -> Optional[AuthHelper]:
     if os.getuid() != 0:
         _LOG.info('not running as root; PAM will be used in this process')
         return None
-    parent_end, child_end = socket.socketpair(socket.AF_UNIX,
-                                              socket.SOCK_STREAM)
+    parent_end, child_end = socket.socketpair(
+        socket.AF_UNIX, socket.SOCK_STREAM
+    )
     try:
         pid = os.fork()
     except OSError as error:
         parent_end.close()
         child_end.close()
         raise PrivilegeError(
-            f'cannot start the authentication helper: {error}') from error
+            f'cannot start the authentication helper: {error}'
+        ) from error
     if pid == 0:
         # The helper. Nothing here may return to the daemon's code.
         status = 0
@@ -955,17 +1016,15 @@ def start_helper() -> Optional[AuthHelper]:
         except BaseException:  # pylint: disable=broad-except
             status = 1
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 child_end.close()
-            except OSError:
-                pass
             os._exit(status)  # pylint: disable=protected-access
     child_end.close()
     _LOG.info('authentication helper started as pid %d', pid)
     return AuthHelper(parent_end, pid)
 
 
-def group_names(record: pwd.struct_passwd) -> List[str]:
+def group_names(record: pwd.struct_passwd) -> list[str]:
     """Lists the groups the daemon account belongs to.
 
     Args:
@@ -981,10 +1040,14 @@ def group_names(record: pwd.struct_passwd) -> List[str]:
         primary = grp.getgrgid(record.pw_gid).gr_name
     except KeyError as error:
         raise PrivilegeError(
-            f'{record.pw_name} has no group {record.pw_gid}') from error
-    others = [group.gr_name for group in grp.getgrall()
-              if record.pw_name in group.gr_mem]
-    return [primary] + sorted(others)
+            f'{record.pw_name} has no group {record.pw_gid}'
+        ) from error
+    others = [
+        group.gr_name
+        for group in grp.getgrall()
+        if record.pw_name in group.gr_mem
+    ]
+    return [primary, *sorted(others)]
 
 
 def access_as(record: pwd.struct_passwd, path: str, mode: int) -> bool:
@@ -1051,8 +1114,7 @@ def _plain_access(path: str, mode: int) -> bool:
         return False
 
 
-def _mode_access(path: str, mode: int,
-                 record: pwd.struct_passwd) -> bool:
+def _mode_access(path: str, mode: int, record: pwd.struct_passwd) -> bool:
     """Guesses from the mode bits, when asking properly is not possible.
 
     Only used if a child cannot be started.  It cannot see ACLs, so it
@@ -1080,9 +1142,15 @@ def _mode_access(path: str, mode: int,
     if info.st_uid == record.pw_uid:
         return bool(info.st_mode & wanted & 0o700)
     groups = {record.pw_gid}
-    try:
-        groups.update(group.gr_gid for group in grp.getgrall()
-                      if record.pw_name in group.gr_mem)
+    # Kept as try/except rather than contextlib.suppress: the
+    # handler carries a coverage pragma of its own, which suppress
+    # has nowhere to put.
+    try:  # noqa: SIM105
+        groups.update(
+            group.gr_gid
+            for group in grp.getgrall()
+            if record.pw_name in group.gr_mem
+        )
     except OSError:  # pragma: no cover
         pass
     if info.st_gid in groups:

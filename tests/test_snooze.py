@@ -2,20 +2,19 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.snooze` and the scheduler honouring it."""
 
 import datetime
 import os
 import tempfile
 import unittest
-from typing import Any, List
+from typing import Any
 
 from kasapanel import activity as activity_lib
-from kasapanel import devicestore
+from kasapanel import devicestore, snooze
 from kasapanel import scheduler as scheduler_lib
-from kasapanel import snooze
 
 # A Monday evening, so the relative forms have something to work from.
 NOW = datetime.datetime(2026, 9, 21, 22, 15, 10)
@@ -43,16 +42,22 @@ class SpanTest(unittest.TestCase):
     def test_components_add_up(self):
         """Several components are summed, spaced or not."""
         expected = datetime.timedelta(hours=2, minutes=30)
-        for text in ('2h 30min', '2h30m', '2 hours 30 minutes', '+2h 30min',
-                     '150min', '9000', '2.5h', '2h 30min left'):
+        for text in (
+            '2h 30min',
+            '2h30m',
+            '2 hours 30 minutes',
+            '+2h 30min',
+            '150min',
+            '9000',
+            '2.5h',
+            '2h 30min left',
+        ):
             self.assertEqual(snooze.resolve(text, NOW), NOW + expected, text)
 
     def test_units_are_case_sensitive(self):
         """Lower case m is minutes and upper case M is months."""
-        self.assertEqual(snooze.parse_span('1m'),
-                         datetime.timedelta(minutes=1))
-        self.assertGreater(snooze.parse_span('1M'),
-                           datetime.timedelta(days=30))
+        self.assertEqual(snooze.parse_span('1m'), datetime.timedelta(minutes=1))
+        self.assertGreater(snooze.parse_span('1M'), datetime.timedelta(days=30))
 
     def test_unknown_units_are_named(self):
         """The unit that was not understood is quoted back."""
@@ -81,14 +86,17 @@ class TimestampTest(unittest.TestCase):
             self.assertEqual(snooze.resolve(text, NOW), moment, text)
         epoch = datetime.datetime(2026, 9, 22, 12, 0)
         self.assertEqual(
-            snooze.resolve(f'@{int(epoch.timestamp())}', NOW), epoch)
+            snooze.resolve(f'@{int(epoch.timestamp())}', NOW), epoch
+        )
 
     def test_utc_is_converted_to_local_time(self):
         """A trailing UTC means UTC, returned as local time."""
         moment = snooze.resolve('2026-09-25 09:00 UTC', NOW)
-        expected = (datetime.datetime(2026, 9, 25, 9, 0,
-                                      tzinfo=datetime.timezone.utc)
-                    .astimezone().replace(tzinfo=None))
+        expected = (
+            datetime.datetime(2026, 9, 25, 9, 0, tzinfo=datetime.timezone.utc)
+            .astimezone()
+            .replace(tzinfo=None)
+        )
         self.assertEqual(moment, expected)
 
     def test_a_weekday_must_match_the_date(self):
@@ -103,16 +111,31 @@ class TimestampTest(unittest.TestCase):
 
     def test_the_past_is_refused(self):
         """Nothing can be snoozed until a moment already gone."""
-        for text in ('now', 'yesterday', '-5min', '3h ago',
-                     '2020-01-01 00:00', '@0'):
+        for text in (
+            'now',
+            'yesterday',
+            '-5min',
+            '3h ago',
+            '2020-01-01 00:00',
+            '@0',
+        ):
             with self.assertRaisesRegex(snooze.SnoozeError, 'future', msg=text):
                 snooze.resolve(text, NOW)
 
     def test_nonsense_is_refused(self):
         """Every kind of mistake is a SnoozeError, never a crash."""
-        for text in ('', '   ', 'soon', '25:00', '2026-02-30', '1x',
-                     'tomorrow tomorrow 07:00', '@nonsense', '1e400h',
-                     '9' * 400):
+        for text in (
+            '',
+            '   ',
+            'soon',
+            '25:00',
+            '2026-02-30',
+            '1x',
+            'tomorrow tomorrow 07:00',
+            '@nonsense',
+            '1e400h',
+            '9' * 400,
+        ):
             with self.assertRaises(snooze.SnoozeError, msg=text):
                 snooze.resolve(text, NOW)
 
@@ -134,8 +157,9 @@ class StoredTest(unittest.TestCase):
         """Only a snooze still to come is in force."""
         later = (NOW + datetime.timedelta(hours=1)).isoformat()
         earlier = (NOW - datetime.timedelta(hours=1)).isoformat()
-        self.assertEqual(snooze.active_until(later, NOW),
-                         NOW + datetime.timedelta(hours=1))
+        self.assertEqual(
+            snooze.active_until(later, NOW), NOW + datetime.timedelta(hours=1)
+        )
         self.assertIsNone(snooze.active_until(earlier, NOW))
         self.assertIsNone(snooze.active_until('', NOW))
         # A hand edit that cannot be read must not stop a schedule.
@@ -143,8 +167,9 @@ class StoredTest(unittest.TestCase):
 
     def test_first_minute(self):
         """Rules come back at the first whole minute after the snooze."""
-        self.assertEqual(snooze.first_minute(NOW),
-                         datetime.datetime(2026, 9, 21, 22, 16))
+        self.assertEqual(
+            snooze.first_minute(NOW), datetime.datetime(2026, 9, 21, 22, 16)
+        )
         exact = datetime.datetime(2026, 9, 21, 22, 15)
         self.assertEqual(snooze.first_minute(exact), exact)
 
@@ -154,10 +179,9 @@ class Recorder:
 
     def __init__(self):
         """Starts with no commands."""
-        self.commands: List[str] = []
+        self.commands: list[str] = []
 
-    def run_action(self, record: Any, action: str,
-                   arguments: List[str]) -> str:
+    def run_action(self, record: Any, action: str, arguments: list[str]) -> str:
         """Records one command.
 
         Args:
@@ -168,7 +192,7 @@ class Recorder:
         Returns:
             A result message.
         """
-        self.commands.append(' '.join([record.host, action] + arguments))
+        self.commands.append(' '.join([record.host, action, *arguments]))
         return 'ok'
 
 
@@ -181,21 +205,27 @@ class SchedulerTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.store = devicestore.DeviceStore(
             os.path.join(self.tmp.name, 'devices.json'),
-            os.path.join(self.tmp.name, 'devices'))
+            os.path.join(self.tmp.name, 'devices'),
+        )
         self.record = self.store.add('10.0.0.5')
         self.store.set_schedule(self.record.device_id, '* * * * * on')
         self.bridge = Recorder()
         self.activity = activity_lib.ActivityLog()
         self.scheduler = scheduler_lib.Scheduler(
-            self.store, self.bridge, self.activity, object())
+            self.store, self.bridge, self.activity, object()
+        )
 
     def test_snoozed_rules_do_not_run(self):
         """Rules are skipped until the snooze ends, then run again."""
         start = datetime.datetime(2026, 9, 21, 22, 15)
-        self.store.snooze(self.record.device_id,
-                          start + datetime.timedelta(minutes=2, seconds=30))
-        ran = [self.scheduler.run_minute(start + datetime.timedelta(minutes=n))
-               for n in range(5)]
+        self.store.snooze(
+            self.record.device_id,
+            start + datetime.timedelta(minutes=2, seconds=30),
+        )
+        ran = [
+            self.scheduler.run_minute(start + datetime.timedelta(minutes=n))
+            for n in range(5)
+        ]
         self.assertEqual(ran, [0, 0, 0, 1, 1])
         self.assertEqual(len(self.bridge.commands), 2)
 
@@ -207,17 +237,22 @@ class SchedulerTest(unittest.TestCase):
         self.scheduler.run_minute(start + datetime.timedelta(minutes=1))
         document = self.store.device_document(self.record.device_id)
         self.assertNotIn('snoozed_until', document)
-        ended = [item for item in self.activity.records(limit=50)
-                 if 'snooze ended' in item['message']]
+        ended = [
+            item
+            for item in self.activity.records(limit=50)
+            if 'snooze ended' in item['message']
+        ]
         self.assertEqual(len(ended), 1)
 
     def test_tidying_does_not_clear_a_newer_snooze(self):
         """A snooze set since the scheduler read the file survives."""
         start = datetime.datetime(2026, 9, 21, 22, 15)
-        self.store.snooze(self.record.device_id,
-                          start + datetime.timedelta(hours=1))
-        self.assertFalse(self.store.unsnooze(self.record.device_id,
-                                             ended_by=start))
+        self.store.snooze(
+            self.record.device_id, start + datetime.timedelta(hours=1)
+        )
+        self.assertFalse(
+            self.store.unsnooze(self.record.device_id, ended_by=start)
+        )
         self.assertTrue(self.store.unsnooze(self.record.device_id))
         self.assertFalse(self.store.unsnooze(self.record.device_id))
 

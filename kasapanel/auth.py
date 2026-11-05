@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Sign in with Linux PAM, plus session bookkeeping.
 
 Passwords are checked against PAM, so the panel has no user database of
@@ -40,11 +40,12 @@ import secrets
 import sys
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
 DEFAULT_PAM_RATE_LIMIT_SECONDS = 1.0
+
 
 def _import_pam():
     """Imports python-pam without letting a broken install stop us.
@@ -59,6 +60,7 @@ def _import_pam():
     """
     try:  # pragma: no cover - depends on the host having python-pam.
         import pam  # pylint: disable=import-outside-toplevel
+
         return pam, ''
     except ImportError as error:  # pragma: no cover
         return None, str(error)
@@ -94,12 +96,16 @@ def pam_reason() -> str:
     if not _IMPORT_ERROR:
         return 'PAM support is unavailable.'
     if "named 'six'" in _IMPORT_ERROR:
-        return ('python-pam is installed but cannot be imported: it needs '
-                'the "six" module, which it does not declare as a '
-                'dependency and which is not installed.')
+        return (
+            'python-pam is installed but cannot be imported: it needs '
+            'the "six" module, which it does not declare as a '
+            'dependency and which is not installed.'
+        )
     if "named 'pam'" in _IMPORT_ERROR:
-        return ('python-pam is not installed for the interpreter running '
-                'this daemon.')
+        return (
+            'python-pam is not installed for the interpreter running '
+            'this daemon.'
+        )
     return f'python-pam could not be imported: {_IMPORT_ERROR}'
 
 
@@ -116,7 +122,7 @@ def pam_advice() -> str:
     return f'{sys.executable} -m pip install python-pam six'
 
 
-def pam_diagnosis() -> Dict[str, Any]:
+def pam_diagnosis() -> dict[str, Any]:
     """Collects everything an operator needs to fix a PAM problem.
 
     The interpreter path is the useful part: installing python-pam for
@@ -153,8 +159,10 @@ def new_authenticator() -> Any:
     if factory is None:
         factory = getattr(pam_module, 'PamAuthenticator', None)
     if factory is None:
-        raise AuthError('python-pam is installed but exposes no '
-                        'authenticator; check its version.')
+        raise AuthError(
+            'python-pam is installed but exposes no '
+            'authenticator; check its version.'
+        )
     try:
         return factory()  # pylint: disable=not-callable
     except (OSError, AttributeError, TypeError) as error:
@@ -162,7 +170,8 @@ def new_authenticator() -> Any:
         raise AuthError(
             'the system PAM library could not be loaded; install libpam '
             '(libpam0g on Debian and Ubuntu) and make sure ldconfig is on '
-            'the daemon PATH.') from error
+            'the daemon PATH.'
+        ) from error
 
 
 def refuse_empty_password(password: str) -> None:
@@ -226,7 +235,7 @@ class RateLimit:
         with self._lock:
             return self._interval
 
-    def take(self, now: Optional[float] = None) -> None:
+    def take(self, now: float | None = None) -> None:
         """Claims the right to engage PAM once.
 
         Args:
@@ -245,7 +254,8 @@ class RateLimit:
                 left = self._interval - waited
                 raise AuthError(
                     'too many sign in attempts at once; try again in '
-                    f'{left:.1f} seconds')
+                    f'{left:.1f} seconds'
+                )
             self._last = moment
 
     def reset(self) -> None:
@@ -281,7 +291,7 @@ class Session:
     remote: str = ''
     user_agent: str = ''
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Returns a JSON friendly view without the secret token."""
         return {
             'username': self.username,
@@ -292,7 +302,7 @@ class Session:
         }
 
 
-def user_groups(username: str) -> List[str]:
+def user_groups(username: str) -> list[str]:
     """Lists the groups a local account belongs to.
 
     Args:
@@ -307,7 +317,10 @@ def user_groups(username: str) -> List[str]:
     except KeyError:
         return []
     names = set()
-    try:
+    # Kept as try/except rather than contextlib.suppress: the
+    # handler carries a coverage pragma of its own, which suppress
+    # has nowhere to put.
+    try:  # noqa: SIM105
         names.add(grp.getgrgid(record.pw_gid).gr_name)
     except KeyError:  # pragma: no cover - inconsistent group database.
         pass
@@ -335,11 +348,15 @@ class Authenticator:
         self._settings = settings
         self._verifier = verifier
         self._lock = threading.Lock()
-        self._failures: Dict[str, int] = {}
-        self._locked_until: Dict[str, datetime.datetime] = {}
+        self._failures: dict[str, int] = {}
+        self._locked_until: dict[str, datetime.datetime] = {}
         PAM_RATE_LIMIT.set_interval(
-            getattr(settings, 'pam_rate_limit_seconds',
-                    DEFAULT_PAM_RATE_LIMIT_SECONDS))
+            getattr(
+                settings,
+                'pam_rate_limit_seconds',
+                DEFAULT_PAM_RATE_LIMIT_SECONDS,
+            )
+        )
 
     def use_verifier(self, verifier: Any) -> None:
         """Sends password checks to a helper instead of to local PAM.
@@ -357,8 +374,12 @@ class Authenticator:
         """
         self._settings = settings
         PAM_RATE_LIMIT.set_interval(
-            getattr(settings, 'pam_rate_limit_seconds',
-                    DEFAULT_PAM_RATE_LIMIT_SECONDS))
+            getattr(
+                settings,
+                'pam_rate_limit_seconds',
+                DEFAULT_PAM_RATE_LIMIT_SECONDS,
+            )
+        )
 
     def _is_allowed(self, username: str) -> bool:
         """Applies the allowed users and groups policy.
@@ -369,12 +390,16 @@ class Authenticator:
         Returns:
             True when the account may use the panel.
         """
-        users = [name.strip() for name
-                 in getattr(self._settings, 'allowed_users', [])
-                 if name.strip()]
-        groups = [name.strip() for name
-                  in getattr(self._settings, 'allowed_groups', [])
-                  if name.strip()]
+        users = [
+            name.strip()
+            for name in getattr(self._settings, 'allowed_users', [])
+            if name.strip()
+        ]
+        groups = [
+            name.strip()
+            for name in getattr(self._settings, 'allowed_groups', [])
+            if name.strip()
+        ]
         if not users and not groups:
             return True
         if username in users:
@@ -401,7 +426,8 @@ class Authenticator:
                 return
             wait = int((until - now).total_seconds())
             raise AuthError(
-                f'too many failed attempts; try again in {wait} seconds')
+                f'too many failed attempts; try again in {wait} seconds'
+            )
 
     def _record_failure(self, username: str) -> None:
         """Counts a failed attempt and locks the account if needed.
@@ -417,7 +443,8 @@ class Authenticator:
             if limit > 0 and count >= limit:
                 self._locked_until[username] = (
                     datetime.datetime.now()
-                    + datetime.timedelta(seconds=seconds))
+                    + datetime.timedelta(seconds=seconds)
+                )
                 _LOG.warning('locked out %s for %s seconds', username, seconds)
 
     def _record_success(self, username: str) -> None:
@@ -463,8 +490,9 @@ class Authenticator:
                 accepted = self._verifier(username, password, service)
             else:
                 session = new_authenticator()
-                accepted = session.authenticate(username, password,
-                                                service=service)
+                accepted = session.authenticate(
+                    username, password, service=service
+                )
         except AuthError:
             raise
         except Exception as error:
@@ -542,7 +570,7 @@ class SessionManager:
         """
         self._settings = settings
         self._lock = threading.Lock()
-        self._sessions: Dict[str, Session] = {}
+        self._sessions: dict[str, Session] = {}
 
     def update_settings(self, settings: Any) -> None:
         """Replaces the settings used for session lifetimes.
@@ -558,8 +586,9 @@ class SessionManager:
         minutes = int(getattr(self._settings, 'session_minutes', 720))
         return datetime.timedelta(minutes=max(minutes, 1))
 
-    def create(self, username: str, remote: str = '',
-               user_agent: str = '') -> Session:
+    def create(
+        self, username: str, remote: str = '', user_agent: str = ''
+    ) -> Session:
         """Starts a session for an account.
 
         Args:
@@ -578,12 +607,13 @@ class SessionManager:
             created_at=now,
             last_seen=now,
             remote=remote,
-            user_agent=user_agent)
+            user_agent=user_agent,
+        )
         with self._lock:
             self._sessions[session.token] = session
         return session
 
-    def get(self, token: str) -> Optional[Session]:
+    def get(self, token: str) -> Session | None:
         """Looks a session up and refreshes its idle timer.
 
         Args:
@@ -623,13 +653,16 @@ class SessionManager:
         now = datetime.datetime.now()
         limit = self._idle_limit
         with self._lock:
-            stale = [token for token, session in self._sessions.items()
-                     if now - session.last_seen > limit]
+            stale = [
+                token
+                for token, session in self._sessions.items()
+                if now - session.last_seen > limit
+            ]
             for token in stale:
                 self._sessions.pop(token, None)
         return len(stale)
 
-    def active(self) -> List[Dict[str, Any]]:
+    def active(self) -> list[dict[str, Any]]:
         """Returns a JSON friendly list of the current sessions."""
         with self._lock:
             sessions = list(self._sessions.values())

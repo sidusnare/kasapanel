@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.auth`.
 
 The PAM cases matter because a python-pam that is installed but not
@@ -15,8 +15,7 @@ import sys
 import unittest
 from unittest import mock
 
-from kasapanel import auth
-from kasapanel import config
+from kasapanel import auth, config
 
 
 class FakePamSession:
@@ -34,8 +33,9 @@ class FakePamSession:
         self.reason = 'test'
         self.calls = []
 
-    def authenticate(self, username: str, password: str,
-                     service: str = 'login') -> bool:
+    def authenticate(
+        self, username: str, password: str, service: str = 'login'
+    ) -> bool:
         """Records the attempt and gives the canned answer.
 
         Args:
@@ -66,9 +66,10 @@ class PamDiagnosisTest(unittest.TestCase):
 
     def test_missing_six_is_named(self):
         """The undeclared six dependency is called out by name."""
-        with mock.patch.object(auth, 'PAM_AVAILABLE', False), \
-                mock.patch.object(auth, '_IMPORT_ERROR',
-                                  "No module named 'six'"):
+        with (
+            mock.patch.object(auth, 'PAM_AVAILABLE', False),
+            mock.patch.object(auth, '_IMPORT_ERROR', "No module named 'six'"),
+        ):
             reason = auth.pam_reason()
             self.assertIn('six', reason)
             self.assertIn('installed but cannot be imported', reason)
@@ -76,17 +77,21 @@ class PamDiagnosisTest(unittest.TestCase):
 
     def test_missing_package_mentions_the_interpreter(self):
         """A genuinely absent package points at the interpreter."""
-        with mock.patch.object(auth, 'PAM_AVAILABLE', False), \
-                mock.patch.object(auth, '_IMPORT_ERROR',
-                                  "No module named 'pam'"):
+        with (
+            mock.patch.object(auth, 'PAM_AVAILABLE', False),
+            mock.patch.object(auth, '_IMPORT_ERROR', "No module named 'pam'"),
+        ):
             self.assertIn('interpreter', auth.pam_reason())
             self.assertIn(sys.executable, auth.pam_advice())
 
     def test_other_errors_are_passed_through(self):
         """An unexpected failure is reported verbatim."""
-        with mock.patch.object(auth, 'PAM_AVAILABLE', False), \
-                mock.patch.object(auth, '_IMPORT_ERROR',
-                                  'OSError: libpam.so.0 is broken'):
+        with (
+            mock.patch.object(auth, 'PAM_AVAILABLE', False),
+            mock.patch.object(
+                auth, '_IMPORT_ERROR', 'OSError: libpam.so.0 is broken'
+            ),
+        ):
             self.assertIn('libpam.so.0 is broken', auth.pam_reason())
 
     def test_diagnosis_reports_the_environment(self):
@@ -98,9 +103,10 @@ class PamDiagnosisTest(unittest.TestCase):
 
     def test_authenticator_refuses_without_pam(self):
         """Building an authenticator without PAM is an auth error."""
-        with mock.patch.object(auth, 'PAM_AVAILABLE', False), \
-                mock.patch.object(auth, '_IMPORT_ERROR',
-                                  "No module named 'six'"):
+        with (
+            mock.patch.object(auth, 'PAM_AVAILABLE', False),
+            mock.patch.object(auth, '_IMPORT_ERROR', "No module named 'six'"),
+        ):
             with self.assertRaises(auth.AuthError) as caught:
                 auth.new_authenticator()
             self.assertIn('six', str(caught.exception))
@@ -109,16 +115,20 @@ class PamDiagnosisTest(unittest.TestCase):
         """Either the old or the new class name is accepted."""
         modern = mock.Mock(spec=['PamAuthenticator'])
         modern.PamAuthenticator.return_value = 'built'
-        with mock.patch.object(auth, 'PAM_AVAILABLE', True), \
-                mock.patch.object(auth, 'pam_module', modern):
+        with (
+            mock.patch.object(auth, 'PAM_AVAILABLE', True),
+            mock.patch.object(auth, 'pam_module', modern),
+        ):
             self.assertEqual(auth.new_authenticator(), 'built')
 
     def test_unloadable_libpam_is_explained(self):
         """A libpam that will not load reads as a server fault."""
         broken = mock.Mock(spec=['pam'])
         broken.pam.side_effect = OSError('cannot open shared object file')
-        with mock.patch.object(auth, 'PAM_AVAILABLE', True), \
-                mock.patch.object(auth, 'pam_module', broken):
+        with (
+            mock.patch.object(auth, 'PAM_AVAILABLE', True),
+            mock.patch.object(auth, 'pam_module', broken),
+        ):
             with self.assertRaises(auth.AuthError) as caught:
                 auth.new_authenticator()
             self.assertIn('libpam', str(caught.exception))
@@ -130,8 +140,7 @@ class RateLimitTest(unittest.TestCase):
     def test_one_a_second_by_default(self):
         """The first check goes through; the next one waits."""
         limit = auth.RateLimit()
-        self.assertEqual(limit.interval,
-                         auth.DEFAULT_PAM_RATE_LIMIT_SECONDS)
+        self.assertEqual(limit.interval, auth.DEFAULT_PAM_RATE_LIMIT_SECONDS)
         limit.take(now=100.0)
         with self.assertRaises(auth.AuthError) as caught:
             limit.take(now=100.5)
@@ -178,8 +187,10 @@ class AuthenticatorTest(unittest.TestCase):
 
     def setUp(self):
         """Leaves the global rate limit as it was found."""
-        self.addCleanup(auth.PAM_RATE_LIMIT.set_interval,
-                        auth.DEFAULT_PAM_RATE_LIMIT_SECONDS)
+        self.addCleanup(
+            auth.PAM_RATE_LIMIT.set_interval,
+            auth.DEFAULT_PAM_RATE_LIMIT_SECONDS,
+        )
         self.addCleanup(auth.PAM_RATE_LIMIT.reset)
 
     def build(self, **overrides) -> auth.Authenticator:
@@ -209,40 +220,38 @@ class AuthenticatorTest(unittest.TestCase):
         """A named account with no password is refused on this side."""
         authenticator = self.build()
         session = FakePamSession(accept=True)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.authenticate('ada', '')
         self.assertIn('password', str(caught.exception))
-        self.assertEqual(session.calls, [],
-                         'PAM must not be asked about an empty password')
+        self.assertEqual(
+            session.calls, [], 'PAM must not be asked about an empty password'
+        )
 
     def test_an_empty_password_costs_nobody_their_turn(self):
         """Refusing one must not consume the rate limited slot."""
         authenticator = self.build(pam_rate_limit_seconds=1)
         session = FakePamSession(accept=True)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
             for _ in range(3):
                 with self.assertRaises(auth.AuthError):
                     authenticator.authenticate('ada', '')
-            self.assertEqual(authenticator.authenticate('ada', 'secret'),
-                             'ada')
+            self.assertEqual(authenticator.authenticate('ada', 'secret'), 'ada')
 
     def test_confirming_checks_the_password_again(self):
         """A locked device's confirmation goes through the same PAM."""
         authenticator = self.build(pam_service='kasapanel')
         session = FakePamSession(accept=True)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
             self.assertEqual(authenticator.confirm('ada', 'secret'), 'ada')
         self.assertEqual(session.calls, [('ada', 'secret', 'kasapanel')])
 
     def test_a_bad_confirmation_is_refused(self):
         """A wrong password confirms nothing."""
         authenticator = self.build()
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=FakePamSession(accept=False)):
+        with mock.patch.object(
+            auth, 'new_authenticator', return_value=FakePamSession(accept=False)
+        ):
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.confirm('ada', 'wrong')
         self.assertIn('did not match', str(caught.exception))
@@ -250,8 +259,9 @@ class AuthenticatorTest(unittest.TestCase):
     def test_confirming_obeys_the_rate_limit(self):
         """One confirmation a second, like every other PAM check."""
         authenticator = self.build(pam_rate_limit_seconds=1)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=FakePamSession(accept=True)):
+        with mock.patch.object(
+            auth, 'new_authenticator', return_value=FakePamSession(accept=True)
+        ):
             self.assertEqual(authenticator.confirm('ada', 'secret'), 'ada')
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.confirm('ada', 'secret')
@@ -261,10 +271,8 @@ class AuthenticatorTest(unittest.TestCase):
         """A list of names must not buy a list of attempts."""
         authenticator = self.build(pam_rate_limit_seconds=1)
         session = FakePamSession(accept=True)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
-            self.assertEqual(authenticator.authenticate('ada', 'secret'),
-                             'ada')
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
+            self.assertEqual(authenticator.authenticate('ada', 'secret'), 'ada')
             with self.assertRaises(auth.AuthError):
                 authenticator.authenticate('grace', 'secret')
             with self.assertRaises(auth.AuthError):
@@ -281,9 +289,10 @@ class AuthenticatorTest(unittest.TestCase):
     def test_missing_pam_is_reported_at_sign_in(self):
         """The sign-in error names the real cause."""
         authenticator = self.build()
-        with mock.patch.object(auth, 'PAM_AVAILABLE', False), \
-                mock.patch.object(auth, '_IMPORT_ERROR',
-                                  "No module named 'six'"):
+        with (
+            mock.patch.object(auth, 'PAM_AVAILABLE', False),
+            mock.patch.object(auth, '_IMPORT_ERROR', "No module named 'six'"),
+        ):
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.authenticate('ada', 'secret')
             self.assertIn('six', str(caught.exception))
@@ -292,18 +301,15 @@ class AuthenticatorTest(unittest.TestCase):
         """The configured PAM service is the one consulted."""
         authenticator = self.build(pam_service='kasapanel')
         session = FakePamSession(accept=True)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
-            self.assertEqual(authenticator.authenticate('ada', 'secret'),
-                             'ada')
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
+            self.assertEqual(authenticator.authenticate('ada', 'secret'), 'ada')
         self.assertEqual(session.calls[0][2], 'kasapanel')
 
     def test_pam_failure_is_a_server_fault(self):
         """A broken service is not reported as a wrong password."""
         authenticator = self.build(pam_service='nosuch')
         session = FakePamSession(blow_up=True)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.authenticate('ada', 'secret')
         message = str(caught.exception)
@@ -314,50 +320,48 @@ class AuthenticatorTest(unittest.TestCase):
         """An account outside the list is refused after PAM accepts."""
         authenticator = self.build(allowed_users=['grace'])
         session = FakePamSession(accept=True)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.authenticate('ada', 'secret')
             self.assertIn('not allowed', str(caught.exception))
-            self.assertEqual(authenticator.authenticate('grace', 'secret'),
-                             'grace')
+            self.assertEqual(
+                authenticator.authenticate('grace', 'secret'), 'grace'
+            )
 
     def test_lockout_after_repeated_failures(self):
         """Wrong passwords lock the account for a while."""
-        authenticator = self.build(max_login_failures=2,
-                                   lockout_seconds=300)
+        authenticator = self.build(max_login_failures=2, lockout_seconds=300)
         session = FakePamSession(accept=False)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=session):
+        with mock.patch.object(auth, 'new_authenticator', return_value=session):
             for _ in range(2):
                 with self.assertRaises(auth.AuthError):
                     authenticator.authenticate('ada', 'wrong')
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.authenticate('ada', 'wrong')
-        self.assertIn('too many failed attempts',
-                      str(caught.exception).lower())
+        self.assertIn('too many failed attempts', str(caught.exception).lower())
         self.assertEqual(len(session.calls), 2)
 
     def test_success_clears_the_failure_count(self):
         """A good password forgives earlier mistakes."""
         authenticator = self.build(max_login_failures=2)
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=FakePamSession(accept=False)):
+        with mock.patch.object(
+            auth, 'new_authenticator', return_value=FakePamSession(accept=False)
+        ):
             with self.assertRaises(auth.AuthError):
                 authenticator.authenticate('ada', 'wrong')
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=FakePamSession(accept=True)):
-            self.assertEqual(authenticator.authenticate('ada', 'right'),
-                             'ada')
-        with mock.patch.object(auth, 'new_authenticator',
-                               return_value=FakePamSession(accept=False)):
+        with mock.patch.object(
+            auth, 'new_authenticator', return_value=FakePamSession(accept=True)
+        ):
+            self.assertEqual(authenticator.authenticate('ada', 'right'), 'ada')
+        with mock.patch.object(
+            auth, 'new_authenticator', return_value=FakePamSession(accept=False)
+        ):
             for _ in range(2):
                 with self.assertRaises(auth.AuthError):
                     authenticator.authenticate('ada', 'wrong')
             with self.assertRaises(auth.AuthError) as caught:
                 authenticator.authenticate('ada', 'wrong')
-        self.assertIn('too many failed attempts',
-                      str(caught.exception).lower())
+        self.assertIn('too many failed attempts', str(caught.exception).lower())
 
 
 if __name__ == '__main__':

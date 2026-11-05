@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """The daemon's log destination.
 
 A long running daemon cannot assume the file it opened at start up is
@@ -19,16 +19,16 @@ is no rotation logic here on purpose; rotation belongs to logrotate or
 to systemd, and this handler is what makes those safe to use.
 """
 
+import contextlib
 import errno
 import logging
 import os
 import sys
-from typing import Optional, Tuple
 
 FILE_MODE = 0o600
 DIR_MODE = 0o700
 
-Marker = Optional[Tuple[int, int]]
+Marker = tuple[int, int] | None
 
 
 class ReopeningFileHandler(logging.Handler):
@@ -67,13 +67,15 @@ class ReopeningFileHandler(logging.Handler):
         if directory and not os.path.isdir(directory):
             os.makedirs(directory, mode=DIR_MODE, exist_ok=True)
         existed = os.path.exists(self.path)
+        # The handler owns this stream for the life of the handler and
+        # closes it in close(); a context manager here would shut the
+        # log after a single write.
         # pylint: disable=consider-using-with
-        self._stream = open(self.path, 'a', encoding='utf-8')
+        self._stream = open(self.path, 'a', encoding='utf-8')  # noqa: SIM115
         if not existed:
-            try:
+            # A mode we cannot set is not worth failing over.
+            with contextlib.suppress(OSError):
                 os.chmod(self.path, self.mode)
-            except OSError:
-                pass  # A mode we cannot set is not worth failing over.
         self._marker = self._identify()
         self._complained = False
 
@@ -89,10 +91,8 @@ class ReopeningFileHandler(logging.Handler):
             return
         current = self._identify()
         if current is None or current != self._marker:
-            try:
+            with contextlib.suppress(OSError):
                 self._stream.close()
-            except OSError:
-                pass
             self._open()
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -108,8 +108,7 @@ class ReopeningFileHandler(logging.Handler):
         except (OSError, ValueError) as error:
             self._fallback(record, error)
 
-    def _fallback(self, record: logging.LogRecord,
-                  error: Exception) -> None:
+    def _fallback(self, record: logging.LogRecord, error: Exception) -> None:
         """Sends a record to stderr when the file cannot be written.
 
         Losing the log is not a reason to lose the daemon, so a failure
@@ -124,13 +123,13 @@ class ReopeningFileHandler(logging.Handler):
             reason = error
             if isinstance(error, OSError) and error.errno:
                 reason = os.strerror(error.errno)
-            print(f'kasapanel: cannot write {self.path}: {reason}; '
-                  'logging to stderr until it can be written again',
-                  file=sys.stderr)
-        try:
+            print(
+                f'kasapanel: cannot write {self.path}: {reason}; '
+                'logging to stderr until it can be written again',
+                file=sys.stderr,
+            )
+        with contextlib.suppress(OSError, ValueError):
             print(self.format(record), file=sys.stderr)
-        except (OSError, ValueError):
-            pass
 
     def close(self) -> None:
         """Closes the file."""

@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Per-user preferences.
 
 Everything here belongs to one operator rather than to the panel: the
@@ -31,7 +31,7 @@ import logging
 import os
 import re
 import threading
-from typing import Any, Dict, List
+from typing import Any
 
 from kasapanel import jsonstore
 
@@ -50,7 +50,8 @@ USERNAME_PATTERN = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}$')
 # well so a preferences file cannot smuggle anything else into a payload
 # the panel reads back.
 DEVICE_ID_PATTERN = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+)
 
 MAX_CARD_ORDER = 512
 
@@ -93,7 +94,7 @@ def clean_theme(value: Any, current: str = DEFAULT_THEME) -> str:
     return current if current in THEMES else DEFAULT_THEME
 
 
-def clean_card_order(value: Any) -> List[str]:
+def clean_card_order(value: Any) -> list[str]:
     """Reduces an incoming card order to a list of device identifiers.
 
     Identifiers that are not UUIDs are dropped, and so are repeats: a
@@ -110,7 +111,7 @@ def clean_card_order(value: Any) -> List[str]:
     """
     if not isinstance(value, (list, tuple)):
         return []
-    order: List[str] = []
+    order: list[str] = []
     for item in value[:MAX_CARD_ORDER]:
         device_id = str(item)
         if DEVICE_ID_PATTERN.match(device_id) and device_id not in order:
@@ -118,7 +119,7 @@ def clean_card_order(value: Any) -> List[str]:
     return order
 
 
-def default_preferences(username: str) -> Dict[str, Any]:
+def default_preferences(username: str) -> dict[str, Any]:
     """Returns the contents of a fresh per-user file.
 
     Args:
@@ -170,7 +171,7 @@ class UserStore:
             raise UserError(f'{username!r} is not an account name')
         return os.path.join(self._user_dir, f'{username}.json')
 
-    def preferences(self, username: str) -> Dict[str, Any]:
+    def preferences(self, username: str) -> dict[str, Any]:
         """Reads one operator's preferences, filling in the defaults.
 
         The file is not created here.  Reading preferences happens on
@@ -202,11 +203,11 @@ class UserStore:
             document['username'] = username
             document['theme'] = clean_theme(document.get('theme'))
             document['device_card_order'] = clean_card_order(
-                document.get('device_card_order'))
+                document.get('device_card_order')
+            )
             return document
 
-    def save(self, username: str,
-             document: Dict[str, Any]) -> Dict[str, Any]:
+    def save(self, username: str, document: dict[str, Any]) -> dict[str, Any]:
         """Writes one operator's preference file.
 
         Args:
@@ -229,8 +230,7 @@ class UserStore:
             jsonstore.write_json(path, document)
         return document
 
-    def update(self, username: str,
-               changes: Dict[str, Any]) -> Dict[str, Any]:
+    def update(self, username: str, changes: dict[str, Any]) -> dict[str, Any]:
         """Applies a partial update to one operator's preferences.
 
         Unknown keys are ignored, so an older panel cannot wipe a field
@@ -251,8 +251,10 @@ class UserStore:
             document = self.preferences(username)
             if 'theme' in changes:
                 document['theme'] = clean_theme(
-                    changes['theme'], document['theme'])
+                    changes['theme'], document['theme']
+                )
             if 'device_card_order' in changes:
                 document['device_card_order'] = clean_card_order(
-                    changes['device_card_order'])
+                    changes['device_card_order']
+                )
             return self.save(username, document)

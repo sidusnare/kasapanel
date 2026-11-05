@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Self-signed TLS material for a first run.
 
 A panel on a home network rarely has a certificate signed by a public
@@ -23,7 +23,6 @@ import os
 import shutil
 import socket
 import subprocess
-from typing import List, Tuple
 
 from kasapanel import jsonstore
 
@@ -38,7 +37,7 @@ class CertificateError(Exception):
     """Raised when TLS material cannot be created."""
 
 
-def local_addresses() -> List[str]:
+def local_addresses() -> list[str]:
     """Guesses the names and addresses this host answers to.
 
     Returns:
@@ -60,8 +59,7 @@ def local_addresses() -> List[str]:
     return names + addresses
 
 
-def _generate_with_cryptography(certificate: str, key: str,
-                                days: int) -> None:
+def _generate_with_cryptography(certificate: str, key: str, days: int) -> None:
     """Writes a self-signed pair using the cryptography package.
 
     Args:
@@ -74,18 +72,19 @@ def _generate_with_cryptography(certificate: str, key: str,
     """
     # pylint: disable=import-outside-toplevel
     from cryptography import x509
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
 
-    private_key = rsa.generate_private_key(public_exponent=65537,
-                                           key_size=3072)
-    subject = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, socket.gethostname()
-                           or 'kasapanel'),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Kasa Panel'),
-    ])
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
+    subject = x509.Name(
+        [
+            x509.NameAttribute(
+                NameOID.COMMON_NAME, socket.gethostname() or 'kasapanel'
+            ),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Kasa Panel'),
+        ]
+    )
     alternatives = []
     for entry in local_addresses():
         try:
@@ -101,16 +100,22 @@ def _generate_with_cryptography(certificate: str, key: str,
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - datetime.timedelta(minutes=5))
         .not_valid_after(now + datetime.timedelta(days=days))
-        .add_extension(x509.SubjectAlternativeName(alternatives),
-                       critical=False)
-        .add_extension(x509.BasicConstraints(ca=True, path_length=0),
-                       critical=True))
+        .add_extension(
+            x509.SubjectAlternativeName(alternatives), critical=False
+        )
+        .add_extension(
+            x509.BasicConstraints(ca=True, path_length=0), critical=True
+        )
+    )
     signed = builder.sign(private_key, hashes.SHA256())
     with open(key, 'wb') as handle:
-        handle.write(private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption()))
+        handle.write(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
     with open(certificate, 'wb') as handle:
         handle.write(signed.public_bytes(serialization.Encoding.PEM))
 
@@ -130,7 +135,8 @@ def _generate_with_openssl(certificate: str, key: str, days: int) -> None:
     if not openssl:
         raise CertificateError(
             'install the cryptography package or the openssl command, or '
-            'point tls_certificate and tls_key at your own files')
+            'point tls_certificate and tls_key at your own files'
+        )
     common_name = socket.gethostname() or 'kasapanel'
     names = []
     for index, entry in enumerate(local_addresses(), start=1):
@@ -140,20 +146,34 @@ def _generate_with_openssl(certificate: str, key: str, days: int) -> None:
         except ValueError:
             names.append(f'DNS.{index}:{entry}')
     command = [
-        openssl, 'req', '-x509', '-newkey', 'rsa:3072', '-nodes',
-        '-keyout', key, '-out', certificate, '-days', str(days),
-        '-subj', f'/CN={common_name}',
-        '-addext', 'subjectAltName=' + ','.join(names),
+        openssl,
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:3072',
+        '-nodes',
+        '-keyout',
+        key,
+        '-out',
+        certificate,
+        '-days',
+        str(days),
+        '-subj',
+        f'/CN={common_name}',
+        '-addext',
+        'subjectAltName=' + ','.join(names),
     ]
     result = subprocess.run(command, check=False, capture_output=True)
     if result.returncode != 0:
         raise CertificateError(
-            'openssl failed: ' + result.stderr.decode('utf-8', 'replace')
-            .strip())
+            'openssl failed: '
+            + result.stderr.decode('utf-8', 'replace').strip()
+        )
 
 
-def ensure_certificate(certificate: str, key: str,
-                       days: int = DEFAULT_DAYS) -> Tuple[str, str]:
+def ensure_certificate(
+    certificate: str, key: str, days: int = DEFAULT_DAYS
+) -> tuple[str, str]:
     """Creates a self-signed pair when one is not already on disk.
 
     Args:
@@ -196,11 +216,13 @@ def fingerprint(certificate: str) -> str:
     # pylint: disable=import-outside-toplevel
     import hashlib
     import ssl
+
     try:
-        with open(certificate, 'r', encoding='ascii') as handle:
+        with open(certificate, encoding='ascii') as handle:
             der = ssl.PEM_cert_to_DER_cert(handle.read())
     except (OSError, ValueError):
         return ''
     digest = hashlib.sha256(der).hexdigest().upper()
-    return ':'.join(digest[index:index + 2]
-                    for index in range(0, len(digest), 2))
+    return ':'.join(
+        digest[index : index + 2] for index in range(0, len(digest), 2)
+    )

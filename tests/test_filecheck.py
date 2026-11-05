@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.filecheck`."""
 
 import os
@@ -13,8 +13,7 @@ import tempfile
 import unittest
 
 from kasapanel import app as app_lib
-from kasapanel import filecheck
-from kasapanel import jsonstore
+from kasapanel import filecheck, jsonstore
 
 
 def find(reports, purpose):
@@ -42,10 +41,13 @@ class FileCheckTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.config_path = os.path.join(self.tmp, 'config.json')
         self.state = os.path.join(self.tmp, 'state')
-        jsonstore.write_json(self.config_path, {
-            'state_dir': self.state,
-            'log_level': 'CRITICAL',
-        })
+        jsonstore.write_json(
+            self.config_path,
+            {
+                'state_dir': self.state,
+                'log_level': 'CRITICAL',
+            },
+        )
         self.app = app_lib.Application(self.config_path)
         self.app.load()
 
@@ -58,17 +60,24 @@ class FileCheckTest(unittest.TestCase):
 
     def test_the_paths_it_checks(self):
         """Every file the daemon writes is covered."""
-        purposes = {report['purpose']
-                    for report in filecheck.inspect(self.app)}
+        purposes = {report['purpose'] for report in filecheck.inspect(self.app)}
         self.assertEqual(
             purposes,
-            {'configuration', 'inventory', 'schedules', 'preferences',
-             'TLS certificate', 'TLS key'})
+            {
+                'configuration',
+                'inventory',
+                'schedules',
+                'preferences',
+                'TLS certificate',
+                'TLS key',
+            },
+        )
 
     def test_the_log_file_is_checked_when_configured(self):
         """A log file only appears in the report when there is one."""
         self.app.apply_settings(
-            {'log_file': os.path.join(self.tmp, 'logs', 'panel.log')})
+            {'log_file': os.path.join(self.tmp, 'logs', 'panel.log')}
+        )
         report = find(filecheck.inspect(self.app), 'log file')
         self.assertIsNotNone(report)
         self.assertEqual(report['source'], 'configured')
@@ -82,16 +91,20 @@ class FileCheckTest(unittest.TestCase):
 
     def test_configured_and_default_are_told_apart(self):
         """Where a value came from is part of the report."""
-        jsonstore.write_json(self.config_path, {
-            'state_dir': self.state,
-            'log_level': 'CRITICAL',
-            'tls_certificate': os.path.join(self.tmp, 'mine.crt'),
-        })
+        jsonstore.write_json(
+            self.config_path,
+            {
+                'state_dir': self.state,
+                'log_level': 'CRITICAL',
+                'tls_certificate': os.path.join(self.tmp, 'mine.crt'),
+            },
+        )
         app = app_lib.Application(self.config_path)
         app.load()
         reports = filecheck.inspect(app)
-        self.assertEqual(find(reports, 'TLS certificate')['source'],
-                         'configured')
+        self.assertEqual(
+            find(reports, 'TLS certificate')['source'], 'configured'
+        )
         self.assertEqual(find(reports, 'TLS key')['source'], 'default')
 
     @unittest.skipIf(os.getuid() == 0, 'root can write anything')
@@ -121,8 +134,9 @@ class FileCheckTest(unittest.TestCase):
     def test_a_missing_directory_is_reported(self):
         """A log file nobody can create is caught before it is needed."""
         # pylint: disable=protected-access
-        report = filecheck._examine('/proc/nowhere/panel.log', 'log file',
-                                    'configured')
+        report = filecheck._examine(
+            '/proc/nowhere/panel.log', 'log file', 'configured'
+        )
         self.assertFalse(report['ok'])
         self.assertIn('does not exist', report['problem'])
         self.assertIn('rotation', report['consequence'])
@@ -138,15 +152,13 @@ class FileCheckTest(unittest.TestCase):
         """The API serves what the check found."""
         self.app.check_files()
         self.assertTrue(self.app.file_checks)
-        self.assertEqual(self.app.file_checks,
-                         filecheck.inspect(self.app))
+        self.assertEqual(self.app.file_checks, filecheck.inspect(self.app))
 
     def test_problems_reach_the_activity_log(self):
         """An operator sees them in the panel as well as the log."""
         self.app.check_files()
         messages = [record['message'] for record in self.app.activity.records()]
-        self.assertTrue(any('not usable' in message
-                            for message in messages))
+        self.assertTrue(any('not usable' in message for message in messages))
 
     def test_saving_settings_rechecks(self):
         """Moving the log file moves what has to be writable."""

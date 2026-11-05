@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """The bridge between the threaded daemon and async python-kasa.
 
 python-kasa is written for asyncio while the daemon is threaded, so one
@@ -22,17 +22,16 @@ import datetime
 import importlib.metadata
 import logging
 import threading
-from typing import Any, Awaitable, Dict, List, Optional
+from collections.abc import Awaitable
+from typing import Any
 
-from kasapanel import actions
-from kasapanel import devicestore
+from kasapanel import actions, devicestore
 
 _LOG = logging.getLogger(__name__)
 
 try:  # pragma: no cover - depends on the installed python-kasa version.
-    from kasa import Credentials
-    from kasa import Discover
-    from kasa import KasaException
+    from kasa import Credentials, Discover, KasaException
+
     KASA_AVAILABLE = True
 except ImportError:  # pragma: no cover
     Credentials = None
@@ -57,14 +56,20 @@ def _kasa_version() -> str:
     except importlib.metadata.PackageNotFoundError:  # pragma: no cover
         # A source checkout on the path has no distribution metadata.
         import kasa  # pylint: disable=import-outside-toplevel
+
         return str(getattr(kasa, '__version__', ''))
 
 
 KASA_VERSION = _kasa_version()
 
 # Errors a device call may raise that are not programming mistakes.
-DEVICE_ERRORS = (KasaException, OSError, asyncio.TimeoutError,
-                 concurrent.futures.TimeoutError, actions.ActionError)
+DEVICE_ERRORS = (
+    KasaException,
+    OSError,
+    asyncio.TimeoutError,
+    concurrent.futures.TimeoutError,
+    actions.ActionError,
+)
 
 
 class BridgeError(Exception):
@@ -81,12 +86,12 @@ class AsyncWorker:
             name: Thread name, which shows up in logs and in ps.
         """
         self._name = name
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._thread: Optional[threading.Thread] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
         self._ready = threading.Event()
 
     @property
-    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
+    def loop(self) -> asyncio.AbstractEventLoop | None:
         """Returns the event loop, or None before it is started."""
         return self._loop
 
@@ -95,7 +100,8 @@ class AsyncWorker:
         if self._thread is not None:
             return
         self._thread = threading.Thread(
-            target=self._serve, name=self._name, daemon=True)
+            target=self._serve, name=self._name, daemon=True
+        )
         self._thread.start()
         self._ready.wait(timeout=10)
 
@@ -112,7 +118,8 @@ class AsyncWorker:
             for task in pending:
                 task.cancel()
             loop.run_until_complete(
-                asyncio.gather(*pending, return_exceptions=True))
+                asyncio.gather(*pending, return_exceptions=True)
+            )
             loop.close()
 
     def stop(self, timeout: float = 5.0) -> None:
@@ -170,7 +177,7 @@ def _feature(device: Any, name: str) -> Any:
     return actions.device_module(device, name)
 
 
-def _light_state(device: Any) -> Dict[str, Any]:
+def _light_state(device: Any) -> dict[str, Any]:
     """Collects the light related part of a device snapshot.
 
     Args:
@@ -182,21 +189,24 @@ def _light_state(device: Any) -> Dict[str, Any]:
     light = _feature(device, 'Light')
     if light is None:
         return {}
-    state: Dict[str, Any] = {}
-    for source, key in (('brightness', 'brightness'),
-                        ('color_temp', 'colour_temperature'),
-                        ('hsv', 'hsv')):
+    state: dict[str, Any] = {}
+    for source, key in (
+        ('brightness', 'brightness'),
+        ('color_temp', 'colour_temperature'),
+        ('hsv', 'hsv'),
+    ):
         value = getattr(light, source, None)
         if value is not None:
             state[key] = list(value) if isinstance(value, tuple) else value
     state['is_dimmable'] = bool(getattr(light, 'is_dimmable', False))
     state['is_colour'] = bool(getattr(light, 'is_color', False))
     state['is_variable_white'] = bool(
-        getattr(light, 'is_variable_color_temp', False))
+        getattr(light, 'is_variable_color_temp', False)
+    )
     return state
 
 
-def _energy_state(device: Any) -> Dict[str, Any]:
+def _energy_state(device: Any) -> dict[str, Any]:
     """Collects the energy monitoring part of a device snapshot.
 
     Args:
@@ -232,12 +242,14 @@ UNSUPPORTED_HINT = (
     'request upstream (python-kasa/python-kasa#1592); until it is '
     'released the device cannot be controlled by python-kasa at all. '
     'Check for a newer python-kasa first, since this note may have '
-    'aged.')
+    'aged.'
+)
 
 CREDENTIALS_HINT = (
     'This device wants TP-Link account credentials. Put the e-mail '
     'address and password of the account the device is bound to into '
-    'device_username and device_password on the settings page.')
+    'device_username and device_password on the settings page.'
+)
 
 
 def explain(where: str, err: Exception) -> str:
@@ -259,7 +271,7 @@ def explain(where: str, err: Exception) -> str:
     return f'{where}: {text}'
 
 
-def describe_device(device: Any) -> Dict[str, Any]:
+def describe_device(device: Any) -> dict[str, Any]:
     """Builds a JSON friendly snapshot of a connected device.
 
     Args:
@@ -270,7 +282,7 @@ def describe_device(device: Any) -> Dict[str, Any]:
     """
     device_type = getattr(device, 'device_type', '')
     on_since = getattr(device, 'on_since', None)
-    snapshot: Dict[str, Any] = {
+    snapshot: dict[str, Any] = {
         'reachable': True,
         'alias': getattr(device, 'alias', '') or '',
         'model': getattr(device, 'model', '') or '',
@@ -280,7 +292,8 @@ def describe_device(device: Any) -> Dict[str, Any]:
         'is_on': bool(getattr(device, 'is_on', False)),
         'rssi': getattr(device, 'rssi', None),
         'on_since': on_since.isoformat(timespec='seconds')
-                    if isinstance(on_since, datetime.datetime) else '',
+        if isinstance(on_since, datetime.datetime)
+        else '',
         'has_led': _feature(device, 'Led') is not None,
         'polled_at': datetime.datetime.now().isoformat(timespec='seconds'),
     }
@@ -302,7 +315,7 @@ class DeviceBridge:
         self._worker = worker
         self._settings = settings
         self._lock = threading.RLock()
-        self._devices: Dict[str, Any] = {}
+        self._devices: dict[str, Any] = {}
 
     def update_settings(self, settings: Any) -> None:
         """Replaces the settings used for new connections.
@@ -342,13 +355,13 @@ class DeviceBridge:
         """
         if not KASA_AVAILABLE:
             raise BridgeError(
-                'python-kasa is not installed; run "pip install python-kasa"')
+                'python-kasa is not installed; run "pip install python-kasa"'
+            )
         device = self._devices.get(host)
         if device is None:
             device = await Discover.discover_single(
-                host,
-                credentials=self._credentials(),
-                timeout=int(self.timeout))
+                host, credentials=self._credentials(), timeout=int(self.timeout)
+            )
             self._devices[host] = device
         await device.update()
         return device
@@ -380,7 +393,7 @@ class DeviceBridge:
                 except BridgeError:  # pragma: no cover - defensive.
                     self._devices.pop(host, None)
 
-    def probe(self, host: str) -> Dict[str, Any]:
+    def probe(self, host: str) -> dict[str, Any]:
         """Contacts a device once and describes it.
 
         Args:
@@ -392,7 +405,8 @@ class DeviceBridge:
         Raises:
             BridgeError: If the device cannot be reached.
         """
-        async def _probe() -> Dict[str, Any]:
+
+        async def _probe() -> dict[str, Any]:
             device = await self._connect(host)
             return describe_device(device)
 
@@ -401,7 +415,7 @@ class DeviceBridge:
         except DEVICE_ERRORS as err:
             raise BridgeError(explain(host, err)) from err
 
-    def snapshot(self, record: devicestore.DeviceRecord) -> Dict[str, Any]:
+    def snapshot(self, record: devicestore.DeviceRecord) -> dict[str, Any]:
         """Polls one device and returns its state.
 
         Unreachable devices produce a snapshot with ``reachable`` set to
@@ -423,12 +437,17 @@ class DeviceBridge:
                 'is_on': False,
                 'host': record.host,
                 'polled_at': datetime.datetime.now().isoformat(
-                    timespec='seconds'),
+                    timespec='seconds'
+                ),
             }
         return state
 
-    def run_action(self, record: devicestore.DeviceRecord, action: str,
-                   arguments: List[str]) -> str:
+    def run_action(
+        self,
+        record: devicestore.DeviceRecord,
+        action: str,
+        arguments: list[str],
+    ) -> str:
         """Runs one action against a device.
 
         Args:
@@ -443,6 +462,7 @@ class DeviceBridge:
             BridgeError: If the device cannot be reached or refuses the
                 command.
         """
+
         async def _run() -> str:
             device = await self._connect(record.host)
             return await actions.execute(device, action, arguments)
@@ -453,7 +473,7 @@ class DeviceBridge:
             self.forget(record.host)
             raise BridgeError(explain(record.display_name, err)) from err
 
-    def discover(self, seconds: Optional[int] = None) -> List[Dict[str, Any]]:
+    def discover(self, seconds: int | None = None) -> list[dict[str, Any]]:
         """Scans the local network for Kasa devices.
 
         Args:
@@ -468,28 +488,28 @@ class DeviceBridge:
         """
         if not KASA_AVAILABLE:
             raise BridgeError(
-                'python-kasa is not installed; run "pip install python-kasa"')
-        listen = int(seconds or getattr(
-            self._settings, 'discovery_seconds', 8))
-        target = getattr(self._settings, 'discovery_target',
-                         '255.255.255.255')
+                'python-kasa is not installed; run "pip install python-kasa"'
+            )
+        listen = int(seconds or getattr(self._settings, 'discovery_seconds', 8))
+        target = getattr(self._settings, 'discovery_target', '255.255.255.255')
 
-        async def _scan() -> List[Dict[str, Any]]:
+        async def _scan() -> list[dict[str, Any]]:
             found = await Discover.discover(
                 target=target,
                 credentials=self._credentials(),
                 discovery_timeout=listen,
-                timeout=listen)
+                timeout=listen,
+            )
             results = []
             for host, device in found.items():
                 try:
                     await device.update()
                     snapshot = describe_device(device)
                 except DEVICE_ERRORS as err:
-                    _LOG.info('discovered %s but could not read it: %s',
-                              host, err)
-                    snapshot = {'reachable': False,
-                                'error': explain(host, err)}
+                    _LOG.info(
+                        'discovered %s but could not read it: %s', host, err
+                    )
+                    snapshot = {'reachable': False, 'error': explain(host, err)}
                 snapshot['host'] = host
                 results.append(snapshot)
             return results

@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """A cron expression parser with minute resolution.
 
 The syntax follows Vixie cron closely:
@@ -25,9 +25,8 @@ minute, which is the finest resolution this language expresses.
 
 import dataclasses
 import datetime
-from typing import Dict, FrozenSet, Optional, Tuple
 
-MACROS: Dict[str, str] = {
+MACROS: dict[str, str] = {
     '@yearly': '0 0 1 1 *',
     '@annually': '0 0 1 1 *',
     '@monthly': '0 0 1 * *',
@@ -38,13 +37,29 @@ MACROS: Dict[str, str] = {
 }
 
 
-MONTH_NAMES: Dict[str, int] = {
-    'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-    'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+MONTH_NAMES: dict[str, int] = {
+    'jan': 1,
+    'feb': 2,
+    'mar': 3,
+    'apr': 4,
+    'may': 5,
+    'jun': 6,
+    'jul': 7,
+    'aug': 8,
+    'sep': 9,
+    'oct': 10,
+    'nov': 11,
+    'dec': 12,
 }
 
-WEEKDAY_NAMES: Dict[str, int] = {
-    'sun': 0, 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6,
+WEEKDAY_NAMES: dict[str, int] = {
+    'sun': 0,
+    'mon': 1,
+    'tue': 2,
+    'wed': 3,
+    'thu': 4,
+    'fri': 5,
+    'sat': 6,
 }
 
 _FIELD_NAMES = ('minute', 'hour', 'day of month', 'month', 'day of week')
@@ -84,7 +99,7 @@ def _parse_value(token: str, index: int) -> int:
         ) from err
 
 
-def _parse_field(field: str, index: int) -> Tuple[FrozenSet[int], bool]:
+def _parse_field(field: str, index: int) -> tuple[frozenset[int], bool]:
     """Expands one cron field into the set of values it matches.
 
     Args:
@@ -115,11 +130,12 @@ def _parse_field(field: str, index: int) -> Tuple[FrozenSet[int], bool]:
                 step = int(step_text, 10)
             except ValueError as err:
                 raise CronError(
-                    f'{_FIELD_NAMES[index]}: step "{step_text}" is not a '
-                    'number') from err
+                    f'{_FIELD_NAMES[index]}: step "{step_text}" is not a number'
+                ) from err
             if step < 1:
                 raise CronError(
-                    f'{_FIELD_NAMES[index]}: step must be 1 or more')
+                    f'{_FIELD_NAMES[index]}: step must be 1 or more'
+                )
         part = part.strip()
         if part in ('*', ''):
             start, stop = low, high
@@ -136,11 +152,12 @@ def _parse_field(field: str, index: int) -> Tuple[FrozenSet[int], bool]:
         for bound in (start, stop):
             if bound < low or bound > high:
                 raise CronError(
-                    f'{_FIELD_NAMES[index]}: {bound} is outside '
-                    f'{low}-{high}')
+                    f'{_FIELD_NAMES[index]}: {bound} is outside {low}-{high}'
+                )
         if stop < start:
             raise CronError(
-                f'{_FIELD_NAMES[index]}: range {start}-{stop} runs backwards')
+                f'{_FIELD_NAMES[index]}: range {start}-{stop} runs backwards'
+            )
         values.update(range(start, stop + 1, step))
     if index == 4 and 7 in values:
         values.discard(7)
@@ -164,11 +181,11 @@ class CronExpression:
     """
 
     source: str
-    minutes: FrozenSet[int] = frozenset()
-    hours: FrozenSet[int] = frozenset()
-    days: FrozenSet[int] = frozenset()
-    months: FrozenSet[int] = frozenset()
-    weekdays: FrozenSet[int] = frozenset()
+    minutes: frozenset[int] = frozenset()
+    hours: frozenset[int] = frozenset()
+    days: frozenset[int] = frozenset()
+    months: frozenset[int] = frozenset()
+    weekdays: frozenset[int] = frozenset()
     day_restricted: bool = False
     weekday_restricted: bool = False
 
@@ -193,7 +210,8 @@ class CronExpression:
             if lowered not in MACROS:
                 known = ', '.join(sorted(MACROS))
                 raise CronError(
-                    f'unknown keyword "{source}"; known keywords: {known}')
+                    f'unknown keyword "{source}"; known keywords: {known}'
+                )
             source_fields = MACROS[lowered]
         else:
             source_fields = source
@@ -201,9 +219,11 @@ class CronExpression:
         if len(fields) != 5:
             raise CronError(
                 f'expected 5 fields, found {len(fields)}: '
-                'minute hour day-of-month month day-of-week')
-        parsed = [_parse_field(field, index)
-                  for index, field in enumerate(fields)]
+                'minute hour day-of-month month day-of-week'
+            )
+        parsed = [
+            _parse_field(field, index) for index, field in enumerate(fields)
+        ]
         return cls(
             source=source,
             minutes=parsed[0][0],
@@ -212,7 +232,8 @@ class CronExpression:
             months=parsed[3][0],
             weekdays=parsed[4][0],
             day_restricted=parsed[2][1],
-            weekday_restricted=parsed[4][1])
+            weekday_restricted=parsed[4][1],
+        )
 
     def _day_matches(self, moment: datetime.datetime) -> bool:
         """Applies the day-of-month and day-of-week matching rule.
@@ -240,15 +261,17 @@ class CronExpression:
         Returns:
             True when the expression fires during that minute.
         """
-        return (moment.minute in self.minutes
-                and moment.hour in self.hours
-                and self._day_matches(moment))
+        return (
+            moment.minute in self.minutes
+            and moment.hour in self.hours
+            and self._day_matches(moment)
+        )
 
     def next_run(
         self,
         after: datetime.datetime,
         horizon_days: int = _SEARCH_HORIZON_DAYS,
-    ) -> Optional[datetime.datetime]:
+    ) -> datetime.datetime | None:
         """Finds the next firing time strictly after a given instant.
 
         Args:

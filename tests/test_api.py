@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.api` using a stand-in device bridge."""
 
 import datetime
@@ -11,15 +11,12 @@ import os
 import tempfile
 import time
 import unittest
-from typing import Any, Dict, List
+from typing import Any
 from unittest import mock
 
 import kasapanel
-from kasapanel import api
+from kasapanel import api, auth, jsonstore, kasabridge
 from kasapanel import app as app_lib
-from kasapanel import auth
-from kasapanel import jsonstore
-from kasapanel import kasabridge
 
 
 class FakeBridge:
@@ -27,13 +24,19 @@ class FakeBridge:
 
     def __init__(self):
         """Sets up one reachable device and an empty command log."""
-        self.states: Dict[str, Dict[str, Any]] = {
-            '10.0.0.5': {'reachable': True, 'is_on': False, 'alias': 'Lamp',
-                         'model': 'HS100', 'mac': 'aa:bb:cc:00:11:22',
-                         'device_type': 'plug', 'host': '10.0.0.5'},
+        self.states: dict[str, dict[str, Any]] = {
+            '10.0.0.5': {
+                'reachable': True,
+                'is_on': False,
+                'alias': 'Lamp',
+                'model': 'HS100',
+                'mac': 'aa:bb:cc:00:11:22',
+                'device_type': 'plug',
+                'host': '10.0.0.5',
+            },
         }
-        self.commands: List[str] = []
-        self.forgotten: List[str] = []
+        self.commands: list[str] = []
+        self.forgotten: list[str] = []
 
     def update_settings(self, settings: Any) -> None:
         """Accepts new settings and ignores them.
@@ -43,7 +46,7 @@ class FakeBridge:
         """
         del settings
 
-    def probe(self, host: str) -> Dict[str, Any]:
+    def probe(self, host: str) -> dict[str, Any]:
         """Returns the canned state of a host.
 
         Args:
@@ -59,7 +62,7 @@ class FakeBridge:
             raise kasabridge.BridgeError(f'{host}: no route to device')
         return dict(self.states[host])
 
-    def snapshot(self, record: Any) -> Dict[str, Any]:
+    def snapshot(self, record: Any) -> dict[str, Any]:
         """Returns the canned state of a device record.
 
         Args:
@@ -73,8 +76,7 @@ class FakeBridge:
         except kasabridge.BridgeError as err:
             return {'reachable': False, 'error': str(err), 'is_on': False}
 
-    def run_action(self, record: Any, action: str,
-                   arguments: List[str]) -> str:
+    def run_action(self, record: Any, action: str, arguments: list[str]) -> str:
         """Applies an action to the canned state.
 
         Args:
@@ -91,7 +93,7 @@ class FakeBridge:
         state = self.states.get(record.host)
         if state is None:
             raise kasabridge.BridgeError(f'{record.host}: no route to device')
-        self.commands.append(' '.join([action] + list(arguments)))
+        self.commands.append(' '.join([action, *list(arguments)]))
         if action == 'on':
             state['is_on'] = True
         elif action == 'off':
@@ -100,7 +102,7 @@ class FakeBridge:
             state['is_on'] = not state['is_on']
         return f'{action} done'
 
-    def discover(self, seconds: int = 0) -> List[Dict[str, Any]]:
+    def discover(self, seconds: int = 0) -> list[dict[str, Any]]:
         """Returns the canned devices as scan results.
 
         Args:
@@ -129,18 +131,27 @@ class ApiTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         config_path = os.path.join(self.tmp.name, 'config.json')
-        jsonstore.write_json(config_path, {
-            'state_dir': os.path.join(self.tmp.name, 'state'),
-            'log_level': 'CRITICAL',
-        })
+        jsonstore.write_json(
+            config_path,
+            {
+                'state_dir': os.path.join(self.tmp.name, 'state'),
+                'log_level': 'CRITICAL',
+            },
+        )
         self.app = app_lib.Application(config_path)
         self.app.load()
         self.app.bridge = FakeBridge()
         self.session = self.app.sessions.create('tester', remote='10.0.0.9')
 
-    def request(self, method: str, path: str,
-                body: Any = None, signed_in: bool = True,
-                csrf: bool = True, carrier: str = 'cookie') -> api.Response:
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: Any = None,
+        signed_in: bool = True,
+        csrf: bool = True,
+        carrier: str = 'cookie',
+    ) -> api.Response:
         """Builds and dispatches one API request.
 
         Args:
@@ -158,8 +169,11 @@ class ApiTest(unittest.TestCase):
         query = ''
         if '?' in path:
             path, _, query = path.partition('?')
-        cookies = ({auth.SESSION_COOKIE: self.session.token}
-                   if signed_in and carrier == 'cookie' else {})
+        cookies = (
+            {auth.SESSION_COOKIE: self.session.token}
+            if signed_in and carrier == 'cookie'
+            else {}
+        )
         token = self.session.csrf_token if csrf else 'wrong'
         headers = {auth.CSRF_HEADER: token}
         if signed_in and carrier == 'header':
@@ -167,12 +181,17 @@ class ApiTest(unittest.TestCase):
         request = api.Request(
             method=method,
             path=path,
-            query={key: [value] for key, value in
-                   (item.split('=', 1) for item in query.split('&') if item)},
+            query={
+                key: [value]
+                for key, value in (
+                    item.split('=', 1) for item in query.split('&') if item
+                )
+            },
             body=body or {},
             cookies=cookies,
             headers=lambda name, default='': headers.get(name, default),
-            remote='10.0.0.9')
+            remote='10.0.0.9',
+        )
         return api.dispatch(self.app, request)
 
     def add_device(self, host: str = '10.0.0.5') -> str:
@@ -198,32 +217,45 @@ class ApiTest(unittest.TestCase):
 
     def test_writes_work_through_the_session_header(self):
         """The header carries writes too, CSRF check included."""
-        added = self.request('POST', '/api/devices', {'host': '10.0.0.5'},
-                             carrier='header')
+        added = self.request(
+            'POST', '/api/devices', {'host': '10.0.0.5'}, carrier='header'
+        )
         self.assertEqual(added.status, 201)
-        refused = self.request('POST', '/api/devices', {'host': '10.0.0.5'},
-                               carrier='header', csrf=False)
+        refused = self.request(
+            'POST',
+            '/api/devices',
+            {'host': '10.0.0.5'},
+            carrier='header',
+            csrf=False,
+        )
         self.assertEqual(refused.status, 403)
 
     def test_sign_in_returns_a_session_token(self):
         """The payload carries the token the header needs."""
         self.app.authenticator = mock.Mock()
         self.app.authenticator.authenticate.return_value = 'tester'
-        response = self.request('POST', '/api/session',
-                                {'username': 'tester', 'password': 'x'},
-                                signed_in=False)
+        response = self.request(
+            'POST',
+            '/api/session',
+            {'username': 'tester', 'password': 'x'},
+            signed_in=False,
+        )
         self.assertEqual(response.status, 200)
         self.assertTrue(response.payload['session_token'])
         self.assertIsNotNone(
-            self.app.sessions.get(response.payload['session_token']))
+            self.app.sessions.get(response.payload['session_token'])
+        )
 
     def test_cookie_is_lax_not_strict(self):
         """The cookie survives an ordinary inbound link."""
         self.app.authenticator = mock.Mock()
         self.app.authenticator.authenticate.return_value = 'tester'
-        response = self.request('POST', '/api/session',
-                                {'username': 'tester', 'password': 'x'},
-                                signed_in=False)
+        response = self.request(
+            'POST',
+            '/api/session',
+            {'username': 'tester', 'password': 'x'},
+            signed_in=False,
+        )
         cookie = response.cookies[0]
         self.assertIn('SameSite=Lax', cookie)
         self.assertIn('HttpOnly', cookie)
@@ -246,23 +278,27 @@ class ApiTest(unittest.TestCase):
     def test_session_is_required(self):
         """Without a cookie the API refuses everything but sign in."""
         self.assertEqual(
-            self.request('GET', '/api/dashboard', signed_in=False).status,
-            401)
+            self.request('GET', '/api/dashboard', signed_in=False).status, 401
+        )
         anonymous = self.request('GET', '/api/session', signed_in=False)
         self.assertEqual(anonymous.status, 200)
         self.assertFalse(anonymous.payload['signed_in'])
 
     def test_csrf_token_is_required_for_writes(self):
         """A write without the matching token is refused."""
-        response = self.request('POST', '/api/devices', {'host': '10.0.0.5'},
-                                csrf=False)
+        response = self.request(
+            'POST', '/api/devices', {'host': '10.0.0.5'}, csrf=False
+        )
         self.assertEqual(response.status, 403)
 
     def test_sign_in_failure_is_reported(self):
         """A refused sign in returns 401 and no cookie."""
-        response = self.request('POST', '/api/session',
-                                {'username': 'nobody', 'password': ''},
-                                signed_in=False)
+        response = self.request(
+            'POST',
+            '/api/session',
+            {'username': 'nobody', 'password': ''},
+            signed_in=False,
+        )
         self.assertEqual(response.status, 401)
         self.assertEqual(response.cookies, [])
         self.assertIn('error', response.payload)
@@ -277,8 +313,9 @@ class ApiTest(unittest.TestCase):
     def test_add_probe_and_control_a_device(self):
         """A device can be added, polled and switched."""
         device_id = self.add_device()
-        response = self.request('POST', f'/api/devices/{device_id}/action',
-                                {'action': 'on'})
+        response = self.request(
+            'POST', f'/api/devices/{device_id}/action', {'action': 'on'}
+        )
         self.assertEqual(response.status, 200)
         self.assertTrue(response.payload['device']['state']['is_on'])
         self.assertEqual(self.app.bridge.commands, ['on'])
@@ -286,70 +323,88 @@ class ApiTest(unittest.TestCase):
     def test_unknown_action_is_refused(self):
         """An action outside the vocabulary gives 400."""
         device_id = self.add_device()
-        response = self.request('POST', f'/api/devices/{device_id}/action',
-                                {'action': 'explode'})
+        response = self.request(
+            'POST', f'/api/devices/{device_id}/action', {'action': 'explode'}
+        )
         self.assertEqual(response.status, 400)
 
     def test_unreachable_device_gives_bad_gateway(self):
         """A device that does not answer gives 502, not 500."""
-        response = self.request('POST', '/api/devices',
-                                {'host': '10.0.0.99'})
+        response = self.request('POST', '/api/devices', {'host': '10.0.0.99'})
         self.assertEqual(response.status, 201)
         self.assertIn('no route', response.payload['warning'])
         device_id = response.payload['device']['device_id']
-        failed = self.request('POST', f'/api/devices/{device_id}/action',
-                              {'action': 'on'})
+        failed = self.request(
+            'POST', f'/api/devices/{device_id}/action', {'action': 'on'}
+        )
         self.assertEqual(failed.status, 502)
 
     def test_unknown_device_gives_not_found(self):
         """An identifier that is not in the inventory gives 404."""
         absent = '00000000-0000-4000-8000-000000000000'
         self.assertEqual(
-            self.request('GET', f'/api/devices/{absent}').status, 404)
+            self.request('GET', f'/api/devices/{absent}').status, 404
+        )
 
     # The identifier arrives in a URL, so it is exactly the sort of
     # input that must never reach a path.
     def test_a_hostile_identifier_is_refused(self):
         """Nothing that is not one of our identifiers touches disk."""
-        for nasty in ('..', '../../etc/passwd', 'mac-aabbcc001122',
-                      '%2e%2e', 'a' * 300):
+        for nasty in (
+            '..',
+            '../../etc/passwd',
+            'mac-aabbcc001122',
+            '%2e%2e',
+            'a' * 300,
+        ):
             for method, path, body in (
-                    ('GET', f'/api/devices/{nasty}', None),
-                    ('DELETE', f'/api/devices/{nasty}', None),
-                    ('GET', f'/api/devices/{nasty}/schedule', None),
-                    ('PUT', f'/api/devices/{nasty}/schedule',
-                     {'schedule': '@daily off'}),
-                    ('POST', f'/api/devices/{nasty}/action',
-                     {'action': 'on'}),
+                ('GET', f'/api/devices/{nasty}', None),
+                ('DELETE', f'/api/devices/{nasty}', None),
+                ('GET', f'/api/devices/{nasty}/schedule', None),
+                (
+                    'PUT',
+                    f'/api/devices/{nasty}/schedule',
+                    {'schedule': '@daily off'},
+                ),
+                ('POST', f'/api/devices/{nasty}/action', {'action': 'on'}),
             ):
                 response = self.request(method, path, body)
-                self.assertIn(response.status, (400, 404),
-                              f'{method} {path} gave {response.status}')
+                self.assertIn(
+                    response.status,
+                    (400, 404),
+                    f'{method} {path} gave {response.status}',
+                )
         # Nothing was created outside the devices directory.
         self.assertEqual(os.listdir(self.app.settings.device_dir), [])
 
     def test_schedule_round_trip(self):
         """A valid schedule saves, and a bad one is refused."""
         device_id = self.add_device()
-        good = self.request('PUT', f'/api/devices/{device_id}/schedule',
-                            {'schedule': '0 6 * * mon-fri on\n@daily off\n'})
+        good = self.request(
+            'PUT',
+            f'/api/devices/{device_id}/schedule',
+            {'schedule': '0 6 * * mon-fri on\n@daily off\n'},
+        )
         self.assertEqual(good.status, 200)
         self.assertTrue(good.payload['summary']['valid'])
         self.assertEqual(good.payload['summary']['rule_count'], 2)
         stored = self.request('GET', f'/api/devices/{device_id}/schedule')
         self.assertIn('@daily off', stored.payload['schedule'])
-        bad = self.request('PUT', f'/api/devices/{device_id}/schedule',
-                           {'schedule': '0 6 * * * levitate'})
+        bad = self.request(
+            'PUT',
+            f'/api/devices/{device_id}/schedule',
+            {'schedule': '0 6 * * * levitate'},
+        )
         self.assertEqual(bad.status, 400)
         self.assertFalse(bad.payload['summary']['valid'])
-        self.assertIn('@daily off',
-                      self.app.devices.get_schedule(device_id))
+        self.assertIn('@daily off', self.app.devices.get_schedule(device_id))
 
     def test_schedule_check_does_not_store(self):
         """Checking a script reports on it without saving it."""
         device_id = self.add_device()
-        response = self.request('POST', '/api/schedule/check',
-                                {'schedule': '@hourly refresh'})
+        response = self.request(
+            'POST', '/api/schedule/check', {'schedule': '@hourly refresh'}
+        )
         self.assertTrue(response.payload['summary']['valid'])
         stored = self.app.devices.get_schedule(device_id)
         self.assertNotIn('@hourly', stored)
@@ -357,8 +412,11 @@ class ApiTest(unittest.TestCase):
     def test_snooze_round_trip(self):
         """A snooze is set, shown on the device, and lifted."""
         device_id = self.add_device()
-        self.request('PUT', f'/api/devices/{device_id}/schedule',
-                     {'schedule': '*/5 * * * * refresh\n'})
+        self.request(
+            'PUT',
+            f'/api/devices/{device_id}/schedule',
+            {'schedule': '*/5 * * * * refresh\n'},
+        )
         path = f'/api/devices/{device_id}/snooze'
         snoozed = self.request('POST', path, {'for': '2h'})
         self.assertEqual(snoozed.status, 200)
@@ -377,19 +435,25 @@ class ApiTest(unittest.TestCase):
     def test_a_bad_snooze_is_refused(self):
         """A time that cannot be used is a 400 that says why."""
         device_id = self.add_device()
-        response = self.request('POST', f'/api/devices/{device_id}/snooze',
-                                {'for': 'yesterday'})
+        response = self.request(
+            'POST', f'/api/devices/{device_id}/snooze', {'for': 'yesterday'}
+        )
         self.assertEqual(response.status, 400)
         self.assertIn('future', response.payload['error'])
         self.assertEqual(
             self.app.devices.device_document(device_id).get('snoozed_until'),
-            None)
+            None,
+        )
 
     def test_snooze_needs_the_csrf_token(self):
         """Snoozing is a write like any other."""
         device_id = self.add_device()
-        response = self.request('POST', f'/api/devices/{device_id}/snooze',
-                                {'for': '1h'}, csrf=False)
+        response = self.request(
+            'POST',
+            f'/api/devices/{device_id}/snooze',
+            {'for': '1h'},
+            csrf=False,
+        )
         self.assertEqual(response.status, 403)
 
     def test_snooze_check_does_not_store(self):
@@ -402,14 +466,16 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(bad.status, 200)
         self.assertFalse(bad.payload['valid'])
         self.assertIn('soon', bad.payload['error'])
-        self.assertNotIn('snoozed_until',
-                         self.app.devices.device_document(device_id))
+        self.assertNotIn(
+            'snoozed_until', self.app.devices.device_document(device_id)
+        )
 
     def test_dashboard_reports_the_host_clock_with_its_zone(self):
         """The clock reads to the second and says which zone it is in."""
         summary = self.request('GET', '/api/dashboard').payload['summary']
-        self.assertRegex(summary['server_time'],
-                         r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$')
+        self.assertRegex(
+            summary['server_time'], r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$'
+        )
         self.assertRegex(summary['server_utc_offset'], r'^[+-]\d\d:\d\d$')
         self.assertTrue(summary['server_timezone'])
 
@@ -420,11 +486,14 @@ class ApiTest(unittest.TestCase):
             time.tzset()
             self.addCleanup(time.tzset)
             clock = app_lib.host_clock(moment)
-        self.assertEqual(clock, {
-            'server_time': '2026-09-21T22:15:10',
-            'server_timezone': 'JST',
-            'server_utc_offset': '+09:00',
-        })
+        self.assertEqual(
+            clock,
+            {
+                'server_time': '2026-09-21T22:15:10',
+                'server_timezone': 'JST',
+                'server_utc_offset': '+09:00',
+            },
+        )
 
     def test_dashboard_reports_versions(self):
         """The footer shows which Kasa Panel and python-kasa are running."""
@@ -442,10 +511,12 @@ class ApiTest(unittest.TestCase):
     def test_update_and_remove(self):
         """A device can be renamed, disabled and removed."""
         device_id = self.add_device()
-        renamed = self.request('PATCH', f'/api/devices/{device_id}',
-                               {'alias': 'Desk lamp', 'enabled': False})
-        self.assertEqual(renamed.payload['device']['display_name'],
-                         'Desk lamp')
+        renamed = self.request(
+            'PATCH',
+            f'/api/devices/{device_id}',
+            {'alias': 'Desk lamp', 'enabled': False},
+        )
+        self.assertEqual(renamed.payload['device']['display_name'], 'Desk lamp')
         self.assertFalse(renamed.payload['device']['enabled'])
         removed = self.request('DELETE', f'/api/devices/{device_id}')
         self.assertEqual(removed.payload['removed'], device_id)
@@ -453,21 +524,23 @@ class ApiTest(unittest.TestCase):
 
     def test_settings_hide_secrets(self):
         """Settings can be read and written without leaking the password."""
-        self.request('PUT', '/api/settings',
-                     {'settings': {'device_password': 'hunter2',
-                                   'poll_seconds': 45}})
+        self.request(
+            'PUT',
+            '/api/settings',
+            {'settings': {'device_password': 'hunter2', 'poll_seconds': 45}},
+        )
         response = self.request('GET', '/api/settings')
         self.assertEqual(response.payload['settings']['poll_seconds'], 45)
         self.assertNotIn('device_password', response.payload['settings'])
-        self.assertTrue(
-            response.payload['settings']['device_password_set'])
+        self.assertTrue(response.payload['settings']['device_password_set'])
         self.assertEqual(self.app.settings.device_password, 'hunter2')
 
     def test_dashboard_summarises(self):
         """The dashboard counts devices and reports the scheduler."""
         device_id = self.add_device()
-        self.request('POST', f'/api/devices/{device_id}/action',
-                     {'action': 'on'})
+        self.request(
+            'POST', f'/api/devices/{device_id}/action', {'action': 'on'}
+        )
         payload = self.request('GET', '/api/dashboard').payload
         self.assertEqual(payload['summary']['total'], 1)
         self.assertEqual(payload['summary']['on'], 1)
@@ -476,21 +549,24 @@ class ApiTest(unittest.TestCase):
     def test_activity_and_sessions(self):
         """Actions leave a trail and the session is listed."""
         device_id = self.add_device()
-        self.request('POST', f'/api/devices/{device_id}/action',
-                     {'action': 'toggle'})
+        self.request(
+            'POST', f'/api/devices/{device_id}/action', {'action': 'toggle'}
+        )
         activity = self.request('GET', '/api/activity?limit=10')
         self.assertTrue(activity.payload['activity'])
         sessions = self.request('GET', '/api/sessions')
-        self.assertEqual(sessions.payload['sessions'][0]['username'],
-                         'tester')
+        self.assertEqual(sessions.payload['sessions'][0]['username'], 'tester')
 
     def test_an_unsupported_device_explains_itself(self):
         """A protocol python-kasa cannot speak is not a panel fault."""
         message = kasabridge.explain(
             '10.5.3.53',
-            RuntimeError('Unsupported device 10.5.3.53 of type '
-                         "SMART.KASAPLUG with encrypt_scheme "
-                         "EncryptionScheme(encrypt_type='TPAP')"))
+            RuntimeError(
+                'Unsupported device 10.5.3.53 of type '
+                'SMART.KASAPLUG with encrypt_scheme '
+                "EncryptionScheme(encrypt_type='TPAP')"
+            ),
+        )
         self.assertIn('TPAP', message)
         self.assertIn('python-kasa', message)
         self.assertIn('not a fault in the panel', message)
@@ -498,14 +574,14 @@ class ApiTest(unittest.TestCase):
     def test_an_authentication_failure_names_the_settings(self):
         """The commonest fixable case says what to fill in."""
         message = kasabridge.explain(
-            'Hall plug', RuntimeError('Invalid authentication'))
+            'Hall plug', RuntimeError('Invalid authentication')
+        )
         self.assertIn('device_username', message)
         self.assertIn('device_password', message)
 
     def test_an_ordinary_failure_is_left_alone(self):
         """Nothing is bolted onto a message that needs no help."""
-        message = kasabridge.explain('10.0.0.5',
-                                     RuntimeError('timed out'))
+        message = kasabridge.explain('10.0.0.5', RuntimeError('timed out'))
         self.assertEqual(message, '10.0.0.5: timed out')
 
     def test_reference_lists_the_language(self):
@@ -525,18 +601,20 @@ class LockTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         config_path = os.path.join(self.tmp.name, 'config.json')
-        jsonstore.write_json(config_path, {
-            'state_dir': os.path.join(self.tmp.name, 'state'),
-            'log_level': 'CRITICAL',
-        })
+        jsonstore.write_json(
+            config_path,
+            {
+                'state_dir': os.path.join(self.tmp.name, 'state'),
+                'log_level': 'CRITICAL',
+            },
+        )
         self.app = app_lib.Application(config_path)
         self.app.load()
         self.app.bridge = FakeBridge()
         self.session = self.app.sessions.create('tester')
         self.device_id = self.app.devices.add('10.0.0.5').device_id
 
-    def request(self, method: str, path: str,
-                body: Any = None) -> api.Response:
+    def request(self, method: str, path: str, body: Any = None) -> api.Response:
         """Builds and dispatches one signed in request.
 
         Args:
@@ -549,10 +627,13 @@ class LockTest(unittest.TestCase):
         """
         headers = {auth.CSRF_HEADER: self.session.csrf_token}
         request = api.Request(
-            method=method, path=path, body=body or {},
+            method=method,
+            path=path,
+            body=body or {},
             cookies={auth.SESSION_COOKIE: self.session.token},
             headers=lambda name, default='': headers.get(name, default),
-            remote='10.0.0.9')
+            remote='10.0.0.9',
+        )
         return api.dispatch(self.app, request)
 
     def lock(self, secure: bool = False) -> None:
@@ -568,15 +649,17 @@ class LockTest(unittest.TestCase):
 
     def test_a_device_starts_unlocked(self):
         """The default is the one that gets in nobody's way."""
-        view = self.request(
-            'GET', f'/api/devices/{self.device_id}').payload['device']
+        view = self.request('GET', f'/api/devices/{self.device_id}').payload[
+            'device'
+        ]
         self.assertFalse(view['locked'])
         self.assertNotIn('secure_locked', view)
 
     def test_locking_needs_no_confirmation(self):
         """Nobody needs protecting from more care being taken."""
-        response = self.request('PATCH', f'/api/devices/{self.device_id}',
-                                {'locked': True})
+        response = self.request(
+            'PATCH', f'/api/devices/{self.device_id}', {'locked': True}
+        )
         self.assertEqual(response.status, 200)
         self.assertTrue(response.payload['device']['locked'])
         self.assertTrue(self.app.devices.is_locked(self.device_id))
@@ -584,23 +667,28 @@ class LockTest(unittest.TestCase):
     def test_unlocking_must_be_confirmed(self):
         """Clicking the box off is the thing the lock is there for."""
         self.lock()
-        refused = self.request('PATCH', f'/api/devices/{self.device_id}',
-                               {'locked': False})
+        refused = self.request(
+            'PATCH', f'/api/devices/{self.device_id}', {'locked': False}
+        )
         self.assertEqual(refused.status, 409)
         self.assertTrue(refused.payload['locked'])
         self.assertFalse(refused.payload['needs_password'])
         self.assertTrue(self.app.devices.is_locked(self.device_id))
 
-        allowed = self.request('PATCH', f'/api/devices/{self.device_id}',
-                               {'locked': False, 'confirm': True})
+        allowed = self.request(
+            'PATCH',
+            f'/api/devices/{self.device_id}',
+            {'locked': False, 'confirm': True},
+        )
         self.assertEqual(allowed.status, 200)
         self.assertFalse(self.app.devices.is_locked(self.device_id))
 
     def test_renaming_a_locked_device_is_not_guarded(self):
         """The lock is about what the device does, not its label."""
         self.lock()
-        response = self.request('PATCH', f'/api/devices/{self.device_id}',
-                                {'alias': 'Bench plug'})
+        response = self.request(
+            'PATCH', f'/api/devices/{self.device_id}', {'alias': 'Bench plug'}
+        )
         self.assertEqual(response.status, 200)
         self.assertEqual(response.payload['device']['alias'], 'Bench plug')
 
@@ -609,15 +697,19 @@ class LockTest(unittest.TestCase):
         self.lock()
         for action in ('on', 'off', 'toggle', 'disable'):
             refused = self.request(
-                'POST', f'/api/devices/{self.device_id}/action',
-                {'action': action})
+                'POST',
+                f'/api/devices/{self.device_id}/action',
+                {'action': action},
+            )
             self.assertEqual(refused.status, 409, action)
             self.assertTrue(refused.payload['locked'])
         self.assertEqual(self.app.bridge.commands, [])
 
         allowed = self.request(
-            'POST', f'/api/devices/{self.device_id}/action',
-            {'action': 'on', 'confirm': True})
+            'POST',
+            f'/api/devices/{self.device_id}/action',
+            {'action': 'on', 'confirm': True},
+        )
         self.assertEqual(allowed.status, 200)
         self.assertEqual(self.app.bridge.commands, ['on'])
 
@@ -627,8 +719,10 @@ class LockTest(unittest.TestCase):
         for action in ('refresh', 'brightness'):
             arguments = ['50'] if action == 'brightness' else []
             response = self.request(
-                'POST', f'/api/devices/{self.device_id}/action',
-                {'action': action, 'arguments': arguments})
+                'POST',
+                f'/api/devices/{self.device_id}/action',
+                {'action': action, 'arguments': arguments},
+            )
             self.assertEqual(response.status, 200, action)
 
     def test_saving_a_schedule_must_be_confirmed(self):
@@ -638,28 +732,39 @@ class LockTest(unittest.TestCase):
         refused = self.request('PUT', path, {'schedule': '@daily on'})
         self.assertEqual(refused.status, 409)
         self.assertIn('saving its schedule', refused.payload['error'])
-        self.assertNotIn('@daily on',
-                         self.app.devices.get_schedule(self.device_id))
+        self.assertNotIn(
+            '@daily on', self.app.devices.get_schedule(self.device_id)
+        )
 
-        allowed = self.request('PUT', path,
-                               {'schedule': '@daily on', 'confirm': True})
+        allowed = self.request(
+            'PUT', path, {'schedule': '@daily on', 'confirm': True}
+        )
         self.assertEqual(allowed.status, 200)
-        self.assertEqual(self.app.devices.get_schedule(self.device_id),
-                         '@daily on')
+        self.assertEqual(
+            self.app.devices.get_schedule(self.device_id), '@daily on'
+        )
 
     def test_enabling_and_disabling_name_themselves(self):
         """The question says which of the three this is."""
         self.lock()
         path = f'/api/devices/{self.device_id}/schedule'
-        off = self.request('PUT', path, {'schedule': '@daily on',
-                                         'schedule_enabled': False})
+        off = self.request(
+            'PUT', path, {'schedule': '@daily on', 'schedule_enabled': False}
+        )
         self.assertEqual(off.status, 409)
         self.assertIn('disabling its schedule', off.payload['error'])
-        self.request('PUT', path, {'schedule': '@daily on',
-                                   'schedule_enabled': False,
-                                   'confirm': True})
-        on = self.request('PUT', path, {'schedule': '@daily on',
-                                        'schedule_enabled': True})
+        self.request(
+            'PUT',
+            path,
+            {
+                'schedule': '@daily on',
+                'schedule_enabled': False,
+                'confirm': True,
+            },
+        )
+        on = self.request(
+            'PUT', path, {'schedule': '@daily on', 'schedule_enabled': True}
+        )
         self.assertEqual(on.status, 409)
         self.assertIn('enabling its schedule', on.payload['error'])
 
@@ -679,8 +784,8 @@ class LockTest(unittest.TestCase):
     def test_an_unlocked_device_is_not_asked_anything(self):
         """The guard is silent until somebody turns it on."""
         response = self.request(
-            'POST', f'/api/devices/{self.device_id}/action',
-            {'action': 'on'})
+            'POST', f'/api/devices/{self.device_id}/action', {'action': 'on'}
+        )
         self.assertEqual(response.status, 200)
 
     def test_secure_locked_asks_for_the_password(self):
@@ -695,22 +800,28 @@ class LockTest(unittest.TestCase):
         self.assertTrue(asked.payload['needs_password'])
         self.app.authenticator.confirm.assert_not_called()
 
-        allowed = self.request('POST', path, {'action': 'on',
-                                              'confirm': True,
-                                              'password': 'secret'})
+        allowed = self.request(
+            'POST',
+            path,
+            {'action': 'on', 'confirm': True, 'password': 'secret'},
+        )
         self.assertEqual(allowed.status, 200)
         self.app.authenticator.confirm.assert_called_once_with(
-            'tester', 'secret')
+            'tester', 'secret'
+        )
 
     def test_a_wrong_password_confirms_nothing(self):
         """And it is not reported as an expired session."""
         self.lock(secure=True)
         self.app.authenticator = mock.Mock()
         self.app.authenticator.confirm.side_effect = auth.AuthError(
-            'that username and password did not match')
+            'that username and password did not match'
+        )
         refused = self.request(
-            'POST', f'/api/devices/{self.device_id}/action',
-            {'action': 'on', 'confirm': True, 'password': 'wrong'})
+            'POST',
+            f'/api/devices/{self.device_id}/action',
+            {'action': 'on', 'confirm': True, 'password': 'wrong'},
+        )
         self.assertEqual(refused.status, 403)
         self.assertTrue(refused.payload['needs_password'])
         self.assertEqual(self.app.bridge.commands, [])
@@ -722,15 +833,17 @@ class LockTest(unittest.TestCase):
         self.lock(secure=True)
         self.app.authenticator = mock.Mock()
         self.app.authenticator.confirm.return_value = 'tester'
-        view = self.request(
-            'GET', f'/api/devices/{self.device_id}').payload['device']
+        view = self.request('GET', f'/api/devices/{self.device_id}').payload[
+            'device'
+        ]
         self.assertNotIn('secure_locked', view)
         dashboard = self.request('GET', '/api/dashboard').payload
         self.assertNotIn('secure_locked', dashboard['devices'][0])
 
         # Asking for it to be turned off changes nothing.
-        self.request('PATCH', f'/api/devices/{self.device_id}',
-                     {'secure_locked': False})
+        self.request(
+            'PATCH', f'/api/devices/{self.device_id}', {'secure_locked': False}
+        )
         self.assertTrue(self.app.devices.is_secure_locked(self.device_id))
 
     def test_a_lock_survives_a_schedule_being_saved(self):
@@ -753,10 +866,13 @@ class PreferencesTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         config_path = os.path.join(self.tmp.name, 'config.json')
-        jsonstore.write_json(config_path, {
-            'state_dir': os.path.join(self.tmp.name, 'state'),
-            'log_level': 'CRITICAL',
-        })
+        jsonstore.write_json(
+            config_path,
+            {
+                'state_dir': os.path.join(self.tmp.name, 'state'),
+                'log_level': 'CRITICAL',
+            },
+        )
         self.app = app_lib.Application(config_path)
         self.app.load()
         self.app.bridge = FakeBridge()
@@ -764,8 +880,9 @@ class PreferencesTest(unittest.TestCase):
         self.first = self.app.devices.add('10.0.0.5').device_id
         self.second = self.app.devices.add('10.0.0.6').device_id
 
-    def request(self, method: str, path: str, body: Any = None,
-                session: Any = None) -> api.Response:
+    def request(
+        self, method: str, path: str, body: Any = None, session: Any = None
+    ) -> api.Response:
         """Builds and dispatches one signed in request.
 
         Args:
@@ -780,13 +897,16 @@ class PreferencesTest(unittest.TestCase):
         who = session or self.session
         headers = {auth.CSRF_HEADER: who.csrf_token}
         request = api.Request(
-            method=method, path=path, body=body or {},
+            method=method,
+            path=path,
+            body=body or {},
             cookies={auth.SESSION_COOKIE: who.token},
             headers=lambda name, default='': headers.get(name, default),
-            remote='10.0.0.9')
+            remote='10.0.0.9',
+        )
         return api.dispatch(self.app, request)
 
-    def preferences(self, session: Any = None) -> Dict[str, Any]:
+    def preferences(self, session: Any = None) -> dict[str, Any]:
         """Reads the preferences of one session's owner.
 
         Args:
@@ -795,8 +915,9 @@ class PreferencesTest(unittest.TestCase):
         Returns:
             The preferences payload.
         """
-        return self.request('GET', '/api/preferences',
-                            session=session).payload['preferences']
+        return self.request('GET', '/api/preferences', session=session).payload[
+            'preferences'
+        ]
 
     def test_a_new_operator_gets_the_defaults(self):
         """Nobody has to choose anything before they can start."""
@@ -811,8 +932,9 @@ class PreferencesTest(unittest.TestCase):
 
     def test_the_theme_is_saved_and_read_back(self):
         """The whole point of keeping it on the daemon."""
-        response = self.request('PUT', '/api/preferences',
-                                {'preferences': {'theme': 'dark'}})
+        response = self.request(
+            'PUT', '/api/preferences', {'preferences': {'theme': 'dark'}}
+        )
         self.assertEqual(response.status, 200)
         self.assertEqual(response.payload['preferences']['theme'], 'dark')
         self.assertEqual(self.preferences()['theme'], 'dark')
@@ -820,8 +942,11 @@ class PreferencesTest(unittest.TestCase):
     def test_the_card_order_is_saved_and_read_back(self):
         """Where the operator put their cards."""
         order = [self.second, self.first]
-        self.request('PUT', '/api/preferences',
-                     {'preferences': {'device_card_order': order}})
+        self.request(
+            'PUT',
+            '/api/preferences',
+            {'preferences': {'device_card_order': order}},
+        )
         self.assertEqual(self.preferences()['device_card_order'], order)
 
     def test_a_theme_nobody_styled_leaves_the_old_one(self):
@@ -833,23 +958,28 @@ class PreferencesTest(unittest.TestCase):
 
     def test_an_order_is_only_device_identifiers(self):
         """Nothing that is not one of our identifiers gets in."""
-        self.request('PUT', '/api/preferences', {
-            'device_card_order': [self.first, '../../etc/passwd', 7],
-        })
-        self.assertEqual(self.preferences()['device_card_order'],
-                         [self.first])
+        self.request(
+            'PUT',
+            '/api/preferences',
+            {
+                'device_card_order': [self.first, '../../etc/passwd', 7],
+            },
+        )
+        self.assertEqual(self.preferences()['device_card_order'], [self.first])
 
     def test_preferences_must_be_an_object(self):
         """A list of settings is not a settings object."""
-        response = self.request('PUT', '/api/preferences',
-                                {'preferences': ['dark']})
+        response = self.request(
+            'PUT', '/api/preferences', {'preferences': ['dark']}
+        )
         self.assertEqual(response.status, 400)
 
     def test_saving_one_thing_leaves_the_other(self):
         """Dragging a card must not undo the theme."""
         self.request('PUT', '/api/preferences', {'theme': 'dark'})
-        self.request('PUT', '/api/preferences',
-                     {'device_card_order': [self.second]})
+        self.request(
+            'PUT', '/api/preferences', {'device_card_order': [self.second]}
+        )
         payload = self.preferences()
         self.assertEqual(payload['theme'], 'dark')
         self.assertEqual(payload['device_card_order'], [self.second])
@@ -861,12 +991,17 @@ class PreferencesTest(unittest.TestCase):
         self.assertEqual(self.preferences(session=other)['theme'], 'light')
         # Naming somebody else in the body changes nothing: the field is
         # not read, and the file written is still the session's own.
-        self.request('PUT', '/api/preferences',
-                     {'theme': 'dark', 'username': 'tester'}, session=other)
+        self.request(
+            'PUT',
+            '/api/preferences',
+            {'theme': 'dark', 'username': 'tester'},
+            session=other,
+        )
         self.assertEqual(self.preferences(session=other)['theme'], 'dark')
         self.assertEqual(
             os.path.basename(self.app.users.path_for('somebody')),
-            'somebody.json')
+            'somebody.json',
+        )
 
     def test_the_file_lands_in_the_users_directory(self):
         """Where the operator can find it, and back it up."""

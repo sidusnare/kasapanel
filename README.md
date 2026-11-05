@@ -3,8 +3,8 @@ SPDX-FileCopyrightText: 2026 Kasa Panel contributors
 
 SPDX-License-Identifier: GPL-3.0-or-later
 
-SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-see docs/ai-bom.spdx.json for the AI usage declaration.
+SPDX-FileContributor: Claude Opus 5 (AI-generated)
+AI usage declaration: docs/ai-bom.spdx.json
 -->
 
 # Kasa Panel
@@ -124,7 +124,7 @@ socket, hand its files to the account, and drop privileges permanently.
 Only the helper keeps root, and the only thing it can be asked is
 whether a password is correct.
 
-```
+```console
 $ ps -o pid,ppid,user,args -C python3
   799   793 www-data  python3 -m kasapanel ... run     <- HTTPS, devices, files
   801   799 root      python3 -m kasapanel ... run     <- PAM only
@@ -148,7 +148,7 @@ up — and a daemon nobody can sign in to is not worth keeping alive. So
 the daemon logs how the helper ended and exits non-zero, and the service
 manager starts a whole one:
 
-```
+```text
 CRITICAL kasapanel.privsep: authentication helper (pid 646) has gone:
          the helper was killed by SIGKILL, which usually means the
          out-of-memory killer or an administrator
@@ -203,7 +203,7 @@ merely happens to be *called* `kasapanel`: a source checkout at
 `/opt/kasapanel` is not the daemon's to take over. When a directory it
 needs is not writable it says so rather than changing it:
 
-```
+```text
 WARNING kasapanel.cli: /tmp/panel is not writable by kasapanel, so settings
         saved from the panel will fail; give that directory to the daemon
         account, or move the file into a directory of its own
@@ -219,7 +219,7 @@ Every file the daemon writes is tried at start up, and the findings go
 to the log, to the activity tab, and to a box across the foot of the
 settings page:
 
-```
+```text
 WARNING kasapanel.filecheck: file check: the log file at
         /var/log/kasapanel/panel.log (configured) is not usable: the
         directory cannot be written, so the temporary file an atomic
@@ -274,7 +274,7 @@ straight into `/run` or `/var/run` is written but cannot be cleaned up
 afterwards. The daemon says so at start up rather than leaving you to
 find out at shutdown:
 
-```
+```text
 WARNING kasapanel.cli: /run is not writable by kasapanel, so the pid file
         will be left behind when the daemon stops; put the pid file in a
         directory of its own, such as /run/kasapanel
@@ -337,7 +337,7 @@ session's CSRF token in the `X-Kasa-CSRF` header.
 
 One rule per line, per device:
 
-```
+```text
 <schedule> <action> [arguments]
 ```
 
@@ -416,7 +416,7 @@ at 21:55 does not switch anything off, it only stops the 22:00 rule.
 The custom time is written in `systemd.time` syntax (`man systemd.time`),
 which is checked as you type:
 
-```
+```text
 45min                 a span, counted from now
 2h 30min              components add up; 2h30m works too
 3d   2w   1.5h        days, weeks, fractions
@@ -507,7 +507,7 @@ published anywhere.
 Two things on the panel belong to whoever is signed in rather than to the
 installation, and they are kept in a file of that person's own:
 
-```
+```text
 /var/lib/kasapanel/users/<username>.json
 ```
 
@@ -552,7 +552,7 @@ order. Settings → Files shows where the directory is.
 
 ## Files
 
-```
+```text
 /etc/kasapanel/config.json          daemon settings
 /var/lib/kasapanel/devices.json     the inventory
 /var/lib/kasapanel/devices/<id>.json  one file per device: schedule, state
@@ -645,7 +645,6 @@ request came from the page or from something else.
 
 ### PAM problems
 
-
 Start with the daemon's own report, which is printed by `check` and
 written to the log at startup:
 
@@ -708,7 +707,7 @@ separate stream: each record is also written to the daemon log at its own
 level, so `journalctl -u kasapanel` shows schedule firings and button
 presses interleaved with everything else.
 
-```
+```text
 INFO  kasapanel.activity: [ada] Desk lamp: Switched on
 ERROR kasapanel.activity: [schedule] Hall plug: refresh failed: timed out
 WARN  kasapanel.certwatch: TLS certificate replaced without a restart
@@ -814,7 +813,8 @@ is reachable and on, brightness, colour temperature, power, energy,
 signal, whether it is locked, schedule rule counts and next firing.
 
 What it does not publish: no user names, no passwords, no key material,
-no session or CSRF tokens, and never `secure_locked`. It does list device names and addresses,
+no session or CSRF tokens, and never `secure_locked`. It does list device names
+and addresses,
 which is what the numbers would be meaningless without — so if the
 endpoint is reachable from somewhere you would rather it were not,
 firewall it or set `metrics_enabled` to false.
@@ -826,7 +826,7 @@ make root mean anything, so every privileged call fails with `EPERM` —
 which reads like a file permission problem and is not one. The usual
 signature is a chown failing for the same reason just before:
 
-```
+```text
 WARNING kasapanel.privsep: cannot give /var/lib/kasapanel to uid 33:
         [Errno 1] Operation not permitted (CAP_CHOWN is not held ...)
 kasapanel: cannot become www-data: [Errno 1] Operation not permitted.
@@ -837,7 +837,7 @@ Since 1.4.3 the daemon logs its own privilege state on every privileged
 start, and the failure message says which of the four possible causes it
 is:
 
-```
+```text
 INFO  kasapanel.privsep: privileged start: uid=0 CapEff=00000000a80425fb
       CapBnd=00000000a80425fb NoNewPrivs=1 Seccomp=2 userns=no
 ```
@@ -858,7 +858,7 @@ It must include `CAP_SETUID CAP_SETGID CAP_CHOWN CAP_FOWNER`.
 holds.** The bounding set is a ceiling; what the process can actually
 use is its *effective* set, and on some systems the two differ:
 
-```
+```text
 CapEff=000000002000044d CapBnd=00000000200004cd
                   ^^ CAP_SETUID missing here    ^^ but allowed here
 ```
@@ -869,7 +869,7 @@ which is what the permitted set is for. When it is not permitted
 either, add this to the unit, which puts the four in the effective set
 whatever the exec path did with them:
 
-```
+```ini
 AmbientCapabilities=CAP_CHOWN CAP_FOWNER CAP_SETGID CAP_SETUID
 ```
 
@@ -878,7 +878,7 @@ survive the drop — changing away from uid 0 clears them, and the daemon
 clears every set explicitly afterwards and logs what is left, which is
 nothing:
 
-```
+```text
 INFO kasapanel.privsep: running as www-data (uid 33, gid 33),
      capabilities cleared
 ```
@@ -964,7 +964,7 @@ Everything the browser does is a JSON request under `/api/`, so scripting
 it is easy. Sign in for a cookie and a CSRF token, then send the token on
 writes.
 
-```
+```text
 POST   /api/session                  sign in
 DELETE /api/session                  sign out
 GET    /api/dashboard                devices, state, next runs, summary
@@ -1008,6 +1008,83 @@ there is no way to ask for anybody else's. A theme that is not `light` or
 `dark` is ignored, and so is an entry in `device_card_order` that is not a
 device identifier.
 
+## Public API
+
+Kasa Panel uses [Semantic Versioning 2.0.0][semver], which is defined
+against a public API, so this is the public API. A change that breaks
+anything listed here needs a major version; an addition needs a minor
+one; a fix that leaves all of it intact needs a patch. Every release is
+recorded in [CHANGELOG.md](CHANGELOG.md).
+
+[semver]: https://semver.org/spec/v2.0.0.html
+
+Kasa Panel is an application rather than a library, so the Python
+modules are **not** part of the public API. Their names, their
+arguments and the layout of the package can change in a patch release.
+The only thing `import kasapanel` promises is `__version__`.
+
+### Command line
+
+```text
+kasapanel [-c FILE] [--log-level LEVEL] <command> [options]
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--version` | | print the version and exit |
+| `-c`, `--config FILE` | see below | the configuration file to read |
+| `--log-level LEVEL` | from the config | override the configured log level |
+
+| Command | Options | What it does |
+| --- | --- | --- |
+| `run` | `--host`, `--port`, `--daemonize`, `--pidfile FILE` | run the daemon; each option overrides the configured value |
+| `check` | | validate the configuration and every device schedule, then exit |
+| `paths` | | print the resolved file paths and exit |
+| `gen-cert` | `--force`, `--days N` | write the self-signed certificate; `--days` defaults to 3650, `--force` replaces an existing pair |
+
+### Environment variables
+
+Only the two the XDG Base Directory Specification defines, and only
+when the daemon is **not** running as root:
+
+| Variable | Default | Used for |
+| --- | --- | --- |
+| `XDG_CONFIG_HOME` | `~/.config` | `$XDG_CONFIG_HOME/kasapanel/config.json` |
+| `XDG_STATE_HOME` | `~/.local/state` | `$XDG_STATE_HOME/kasapanel/` |
+
+As root the paths are fixed at `/etc/kasapanel/config.json` and
+`/var/lib/kasapanel/`, and neither variable is consulted: a service
+daemon's files should not move because of the environment it was
+started from.
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | the command did what was asked |
+| `1` | it did not: a bad configuration, a file that cannot be written, a certificate that cannot be made, or a daemon that could not start |
+| `2` | the command line itself was wrong, from `argparse` |
+
+A daemon stopped by `SIGTERM` or `SIGINT` exits `0`. Nothing returns
+any other code, so a wrapper can treat anything above `1` as a bug.
+
+### Configuration and document formats
+
+The configuration file, the inventory, the per-device documents and the
+per-user preference files are all part of the public API: their paths,
+their field names and the types of their values. They are described
+under [Settings](#settings) and [Files](#files). A field may be added
+in a minor release; renaming or removing one, or changing what a value
+means, is a major change.
+
+An unknown field in any of these files is ignored rather than refused,
+so a file written by a newer version stays readable by an older one.
+
+### HTTP and metrics endpoints
+
+The endpoints under [HTTP API](#http-api), their request and response
+shapes, and the `/metrics` output described under [Metrics](#metrics).
+
 ## Design
 
 Threads, not a framework. python-kasa is asyncio, so one thread owns a
@@ -1016,7 +1093,7 @@ coroutines and wait with a timeout. A minute-tick thread half a second past
 each boundary runs due schedule rules through a small thread pool, and a
 poller thread keeps the dashboard fresh.
 
-```
+```text
 cli / __main__            entry points
 httpd                     TLS, threads, static files, security headers
 api                       transport-free JSON routing
@@ -1041,14 +1118,24 @@ the server sends does not allow any.
 pip install -r requirements-dev.txt
 pylint kasapanel tests tools        # 10.00/10 against Google's pylintrc
 python3 -m unittest discover -s tests -t . -v
+ruff check . && ruff format --check .
+reuse lint                          # SPDX headers and licence texts
+yamllint -c .yamllint.yaml .
 python3 tools/make_sbom.py          # regenerate sbom.spdx.json
 ```
 
-Changing the interface needs Node:
+`test_a_read_only_directory_is_not` in `tests/test_privsep.py` fails
+when the tree sits on a filesystem where the owner may write a
+directory it has made read-only. That is the filesystem talking, not
+the daemon.
+
+Changing the interface needs Node 22.22, 24.15 or 26 or newer,
+whichever line you are on. It is developed and tested on 26.
 
 ```sh
 cd frontend
-npm install
+npm ci             # node_modules is not committed; restore it from the lock
+npx eslint .
 npm run build      # rewrites ../kasapanel/static/bundle.js
 npm run watch      # rebuild on save
 npm test           # runs the built bundle in jsdom against recorded
@@ -1056,6 +1143,17 @@ npm test           # runs the built bundle in jsdom against recorded
 ```
 
 Commit the rebuilt `bundle.js` along with the source change.
+
+The Markdown is linted with markdownlint, declared in the small root
+`package.json` that exists only for documentation tooling:
+
+```sh
+npm ci             # at the top of the tree, not in frontend/
+npm run lint:md
+```
+
+Its rules are in `.markdownlint.yaml` and the files it reads are in
+`.markdownlint-cli2.yaml`.
 
 `AI.prompt.md` holds a prompt that regenerates this project. It is meant
 to stay accurate: if you change what the daemon does, change it to

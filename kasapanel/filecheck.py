@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Checks that the files the daemon writes can actually be written.
 
 A daemon that cannot write its configuration is not broken in any way
@@ -36,7 +36,7 @@ it was not designed for.
 
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 from kasapanel import privsep
 
@@ -47,8 +47,7 @@ CONSEQUENCES = {
     'configuration': 'settings saved from the panel will fail',
     'inventory': 'devices cannot be added, renamed or removed',
     'schedules': 'schedules cannot be saved',
-    'preferences': 'the card order and theme each user chooses cannot be '
-                   'saved',
+    'preferences': 'the card order and theme each user chooses cannot be saved',
     'state': 'nothing can be stored between restarts',
     'log file': 'the log cannot be written or recreated after rotation',
     'pid file': 'the pid file will be left behind at shutdown',
@@ -84,8 +83,13 @@ def _access(path: str, mode: int, account: Any = None) -> bool:
         return False
 
 
-def _examine(path: str, purpose: str, source: str,
-             writing: bool = True, account: Any = None) -> Dict[str, Any]:
+def _examine(
+    path: str,
+    purpose: str,
+    source: str,
+    writing: bool = True,
+    account: Any = None,
+) -> dict[str, Any]:
     """Works out whether one path can be used as intended.
 
     Args:
@@ -99,7 +103,7 @@ def _examine(path: str, purpose: str, source: str,
         A JSON friendly report.
     """
     directory = os.path.dirname(os.path.abspath(path)) or '.'
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         'purpose': purpose,
         'path': path,
         'directory': directory,
@@ -129,7 +133,8 @@ def _examine(path: str, purpose: str, source: str,
         # directory looks fine until the first save.
         report['problem'] = (
             'the directory cannot be written, so the temporary file an '
-            'atomic write needs cannot be created there')
+            'atomic write needs cannot be created there'
+        )
         return report
     if report['exists'] and not _access(path, os.W_OK, account):
         report['ok'] = False
@@ -137,7 +142,7 @@ def _examine(path: str, purpose: str, source: str,
     return report
 
 
-def inspect(app: Any, account: Any = None) -> List[Dict[str, Any]]:
+def inspect(app: Any, account: Any = None) -> list[dict[str, Any]]:
     """Checks every file the daemon writes, and the TLS pair it reads.
 
     Args:
@@ -164,31 +169,63 @@ def inspect(app: Any, account: Any = None) -> List[Dict[str, Any]]:
         return 'configured' if store.is_explicit(name) else 'default'
 
     reports = [
-        _examine(store.path, 'configuration',
-                 'configured' if app.config_path else 'default',
-                 account=account),
-        _examine(settings.devices_file, 'inventory', source('state_dir'),
-                 account=account),
-        _examine(os.path.join(settings.device_dir, 'a-device.json'),
-                 'schedules', source('state_dir'), account=account),
-        _examine(os.path.join(settings.user_dir, 'a-user.json'),
-                 'preferences', source('state_dir'), account=account),
-        _examine(settings.resolved_certificate(), 'TLS certificate',
-                 source('tls_certificate'), writing=False, account=account),
-        _examine(settings.resolved_key(), 'TLS key',
-                 source('tls_key'), writing=False, account=account),
+        _examine(
+            store.path,
+            'configuration',
+            'configured' if app.config_path else 'default',
+            account=account,
+        ),
+        _examine(
+            settings.devices_file,
+            'inventory',
+            source('state_dir'),
+            account=account,
+        ),
+        _examine(
+            os.path.join(settings.device_dir, 'a-device.json'),
+            'schedules',
+            source('state_dir'),
+            account=account,
+        ),
+        _examine(
+            os.path.join(settings.user_dir, 'a-user.json'),
+            'preferences',
+            source('state_dir'),
+            account=account,
+        ),
+        _examine(
+            settings.resolved_certificate(),
+            'TLS certificate',
+            source('tls_certificate'),
+            writing=False,
+            account=account,
+        ),
+        _examine(
+            settings.resolved_key(),
+            'TLS key',
+            source('tls_key'),
+            writing=False,
+            account=account,
+        ),
     ]
     if settings.log_file:
-        reports.append(_examine(settings.log_file, 'log file',
-                                source('log_file'), account=account))
+        reports.append(
+            _examine(
+                settings.log_file,
+                'log file',
+                source('log_file'),
+                account=account,
+            )
+        )
     pidfile = getattr(app, 'pidfile', '')
     if pidfile:
-        reports.append(_examine(pidfile, 'pid file', 'configured',
-                                account=account))
+        reports.append(
+            _examine(pidfile, 'pid file', 'configured', account=account)
+        )
     return reports
 
 
-def problems(reports: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def problems(reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Filters a report list down to the failures.
 
     Args:
@@ -200,7 +237,7 @@ def problems(reports: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [report for report in reports if not report['ok']]
 
 
-def log_reports(reports: List[Dict[str, Any]]) -> None:
+def log_reports(reports: list[dict[str, Any]]) -> None:
     """Writes the findings to the daemon log.
 
     Args:
@@ -214,6 +251,9 @@ def log_reports(reports: List[Dict[str, Any]]) -> None:
         consequence = report['consequence']
         _LOG.warning(
             'file check: the %s at %s (%s) is not usable: %s%s',
-            report['purpose'], report['path'], report['source'],
+            report['purpose'],
+            report['path'],
+            report['source'],
             report['problem'],
-            f'; {consequence}' if consequence else '')
+            f'; {consequence}' if consequence else '',
+        )

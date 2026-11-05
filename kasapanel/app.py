@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SPDX-FileContributor: Drafted with AI assistance (Anthropic Claude);
-# see docs/ai-bom.spdx.json for the AI usage declaration.
+# SPDX-FileContributor: Claude Opus 5 (AI-generated)
+# AI usage declaration: docs/ai-bom.spdx.json
 """Application wiring and lifecycle.
 
 :class:`Application` owns every long lived object and the threads that
@@ -23,20 +23,22 @@ import datetime
 import logging
 import sys
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from kasapanel import __version__
-from kasapanel import actions
+from kasapanel import (
+    __version__,
+    actions,
+    auth,
+    devicestore,
+    filecheck,
+    kasabridge,
+    logsink,
+    userstore,
+)
 from kasapanel import activity as activity_lib
-from kasapanel import auth
 from kasapanel import config as config_lib
-from kasapanel import devicestore
-from kasapanel import filecheck
-from kasapanel import kasabridge
-from kasapanel import logsink
 from kasapanel import schedule as schedule_lib
 from kasapanel import snooze as snooze_lib
-from kasapanel import userstore
 
 _LOG = logging.getLogger(__name__)
 
@@ -63,9 +65,11 @@ def configure_logging(settings: config_lib.PanelConfig) -> None:
             # not a reason to refuse to start.  The file check reports
             # it properly a moment later.
             handler = logging.StreamHandler()
-            print(f'kasapanel: cannot open the log file '
-                  f'{settings.log_file}: {error}; logging to stderr',
-                  file=sys.stderr)
+            print(
+                f'kasapanel: cannot open the log file '
+                f'{settings.log_file}: {error}; logging to stderr',
+                file=sys.stderr,
+            )
     else:
         handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter(LOG_FORMAT))
@@ -73,7 +77,7 @@ def configure_logging(settings: config_lib.PanelConfig) -> None:
     root.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
 
 
-def host_clock(now: Optional[datetime.datetime] = None) -> Dict[str, str]:
+def host_clock(now: datetime.datetime | None = None) -> dict[str, str]:
     """Reports the daemon host's clock, to the second, with its zone.
 
     The time itself stays in the naive local form every other timestamp
@@ -90,13 +94,14 @@ def host_clock(now: Optional[datetime.datetime] = None) -> Dict[str, str]:
     offset = moment.strftime('%z')
     return {
         'server_time': moment.replace(tzinfo=None).isoformat(
-            timespec='seconds'),
+            timespec='seconds'
+        ),
         'server_timezone': moment.strftime('%Z'),
         'server_utc_offset': f'{offset[:3]}:{offset[3:]}' if offset else '',
     }
 
 
-def versions() -> Dict[str, str]:
+def versions() -> dict[str, str]:
     """Reports the versions of Kasa Panel and python-kasa in use.
 
     Returns:
@@ -120,24 +125,25 @@ class Application:
         self.settings = self.config_store.config
         self.activity = activity_lib.ActivityLog()
         self.devices = devicestore.DeviceStore(
-            self.settings.devices_file, self.settings.device_dir)
+            self.settings.devices_file, self.settings.device_dir
+        )
         self.users = userstore.UserStore(self.settings.user_dir)
         self.worker = kasabridge.AsyncWorker()
         self.bridge = kasabridge.DeviceBridge(self.worker, self.settings)
         self.authenticator = auth.Authenticator(self.settings)
         self.sessions = auth.SessionManager(self.settings)
-        self.scheduler: Optional[Any] = None
-        self.server: Optional[Any] = None
-        self.certwatch: Optional[Any] = None
-        self.helper: Optional[Any] = None
-        self.daemon_user: Dict[str, Any] = {}
+        self.scheduler: Any | None = None
+        self.server: Any | None = None
+        self.certwatch: Any | None = None
+        self.helper: Any | None = None
+        self.daemon_user: dict[str, Any] = {}
         self.pidfile: str = ''
-        self.file_checks: List[Dict[str, Any]] = []
+        self.file_checks: list[dict[str, Any]] = []
         self.started_at = datetime.datetime.now()
-        self._states: Dict[str, Dict[str, Any]] = {}
+        self._states: dict[str, dict[str, Any]] = {}
         self._states_lock = threading.Lock()
         self._stop = threading.Event()
-        self._poller: Optional[threading.Thread] = None
+        self._poller: threading.Thread | None = None
 
     def load(self) -> config_lib.PanelConfig:
         """Reads the configuration and the device inventory.
@@ -152,7 +158,8 @@ class Application:
         self.settings = self.config_store.load()
         configure_logging(self.settings)
         self.devices = devicestore.DeviceStore(
-            self.settings.devices_file, self.settings.device_dir)
+            self.settings.devices_file, self.settings.device_dir
+        )
         self.devices.load()
         self.users = userstore.UserStore(self.settings.user_dir)
         self.activity.resize(self.settings.history_limit)
@@ -160,7 +167,8 @@ class Application:
         self.authenticator.update_settings(self.settings)
         self.sessions.update_settings(self.settings)
         self.scheduler = scheduler_lib.Scheduler(
-            self.devices, self.bridge, self.activity, self.settings)
+            self.devices, self.bridge, self.activity, self.settings
+        )
         _LOG.info('configuration loaded from %s', self.config_store.path)
         _LOG.info('state directory is %s', self.settings.state_dir)
         if not auth.PAM_AVAILABLE:
@@ -175,7 +183,8 @@ class Application:
         self._stop.clear()
         self.worker.start()
         self._poller = threading.Thread(
-            target=self._poll_forever, name='kasa-poller', daemon=True)
+            target=self._poll_forever, name='kasa-poller', daemon=True
+        )
         self._poller.start()
         if self.scheduler is not None:
             self.scheduler.start()
@@ -193,7 +202,7 @@ class Application:
         self.activity.add('Kasa Panel stopped', source='daemon')
         _LOG.info('stopped')
 
-    def apply_settings(self, changes: Dict[str, Any]) -> config_lib.PanelConfig:
+    def apply_settings(self, changes: dict[str, Any]) -> config_lib.PanelConfig:
         """Saves changed settings and pushes them to every component.
 
         Changes to the listening address and port only take effect when
@@ -234,7 +243,7 @@ class Application:
             if self._stop.wait(timeout=interval):
                 break
 
-    def poll_all(self) -> Dict[str, Dict[str, Any]]:
+    def poll_all(self) -> dict[str, dict[str, Any]]:
         """Polls every enabled device once, in parallel.
 
         Returns:
@@ -245,13 +254,15 @@ class Application:
             return {}
         workers = min(MAX_PARALLEL_POLLS, len(records))
         with concurrent.futures.ThreadPoolExecutor(
-                max_workers=workers,
-                thread_name_prefix='kasa-poll') as pool:
+            max_workers=workers, thread_name_prefix='kasa-poll'
+        ) as pool:
             snapshots = list(pool.map(self._poll_one, records))
-        return {record.device_id: snapshot
-                for record, snapshot in zip(records, snapshots)}
+        return {
+            record.device_id: snapshot
+            for record, snapshot in zip(records, snapshots, strict=True)
+        }
 
-    def _poll_one(self, record: devicestore.DeviceRecord) -> Dict[str, Any]:
+    def _poll_one(self, record: devicestore.DeviceRecord) -> dict[str, Any]:
         """Polls one device and remembers the result.
 
         Args:
@@ -264,8 +275,9 @@ class Application:
         self.store_state(record, snapshot)
         return snapshot
 
-    def store_state(self, record: devicestore.DeviceRecord,
-                    snapshot: Dict[str, Any]) -> None:
+    def store_state(
+        self, record: devicestore.DeviceRecord, snapshot: dict[str, Any]
+    ) -> None:
         """Caches a snapshot and persists interesting changes.
 
         The per-device file is only rewritten when the device changes
@@ -281,18 +293,21 @@ class Application:
             self._states[record.device_id] = snapshot
         if snapshot.get('reachable'):
             self.devices.annotate(record.device_id, snapshot)
-        changed = (previous.get('is_on') != snapshot.get('is_on')
-                   or previous.get('reachable') != snapshot.get('reachable'))
+        changed = previous.get('is_on') != snapshot.get(
+            'is_on'
+        ) or previous.get('reachable') != snapshot.get('reachable')
         if changed:
             self.devices.record_state(record.device_id, snapshot)
             if previous and not snapshot.get('reachable'):
                 self.activity.add(
                     f'{record.display_name} stopped answering',
-                    level='warning', source='poller',
+                    level='warning',
+                    source='poller',
                     device_id=record.device_id,
-                    device_name=record.display_name)
+                    device_name=record.display_name,
+                )
 
-    def check_files(self, account: Any = None) -> List[Dict[str, Any]]:
+    def check_files(self, account: Any = None) -> list[dict[str, Any]]:
         """Tests every file the daemon writes and keeps the findings.
 
         Run this after privileges have been dropped: the question is
@@ -314,10 +329,12 @@ class Application:
             problem = report['problem']
             self.activity.add(
                 f'The {purpose} at {path} is not usable: {problem}',
-                level='warning', source='daemon')
+                level='warning',
+                source='daemon',
+            )
         return self.file_checks
 
-    def state_of(self, device_id: str) -> Dict[str, Any]:
+    def state_of(self, device_id: str) -> dict[str, Any]:
         """Returns the cached snapshot of one device.
 
         Args:
@@ -329,7 +346,7 @@ class Application:
         with self._states_lock:
             return dict(self._states.get(device_id, {}))
 
-    def refresh(self, device_id: str) -> Dict[str, Any]:
+    def refresh(self, device_id: str) -> dict[str, Any]:
         """Polls one device immediately.
 
         Args:
@@ -344,8 +361,13 @@ class Application:
         record = self.devices.get(device_id)
         return self._poll_one(record)
 
-    def run_action(self, device_id: str, action: str,
-                   arguments: List[str], actor: str = 'dashboard') -> str:
+    def run_action(
+        self,
+        device_id: str,
+        action: str,
+        arguments: list[str],
+        actor: str = 'dashboard',
+    ) -> str:
         """Runs one action against a device and logs it.
 
         Args:
@@ -369,17 +391,25 @@ class Application:
             result = self.bridge.run_action(record, action, arguments)
         except kasabridge.BridgeError as err:
             self.activity.add(
-                f'{action} failed: {err}', level='error', source=actor,
-                device_id=device_id, device_name=record.display_name)
+                f'{action} failed: {err}',
+                level='error',
+                source=actor,
+                device_id=device_id,
+                device_name=record.display_name,
+            )
             raise
         self.activity.add(
-            f'{action} -> {result}', source=actor, device_id=device_id,
-            device_name=record.display_name)
+            f'{action} -> {result}',
+            source=actor,
+            device_id=device_id,
+            device_name=record.display_name,
+        )
         self._poll_one(record)
         return result
 
-    def snooze(self, device_id: str, text: str,
-               actor: str = 'dashboard') -> datetime.datetime:
+    def snooze(
+        self, device_id: str, text: str, actor: str = 'dashboard'
+    ) -> datetime.datetime:
         """Snoozes a device's schedule.
 
         Args:
@@ -399,8 +429,10 @@ class Application:
         self.devices.snooze(device_id, until)
         self.activity.add(
             f'Schedule snoozed until {until:%Y-%m-%d %H:%M} ({text.strip()})',
-            source=actor, device_id=device_id,
-            device_name=record.display_name)
+            source=actor,
+            device_id=device_id,
+            device_name=record.display_name,
+        )
         return until
 
     def unsnooze(self, device_id: str, actor: str = 'dashboard') -> bool:
@@ -420,12 +452,16 @@ class Application:
         lifted = self.devices.unsnooze(device_id)
         if lifted:
             self.activity.add(
-                'Schedule snooze cancelled', source=actor,
-                device_id=device_id, device_name=record.display_name)
+                'Schedule snooze cancelled',
+                source=actor,
+                device_id=device_id,
+                device_name=record.display_name,
+            )
         return lifted
 
-    def set_locked(self, device_id: str, locked: bool,
-                   actor: str = 'dashboard') -> bool:
+    def set_locked(
+        self, device_id: str, locked: bool, actor: str = 'dashboard'
+    ) -> bool:
         """Locks or unlocks a device and says so in the activity log.
 
         Args:
@@ -443,11 +479,14 @@ class Application:
         self.devices.set_locked(device_id, locked)
         verb = 'Locked' if locked else 'Unlocked'
         self.activity.add(
-            f'{verb} {record.display_name}', source=actor,
-            device_id=device_id, device_name=record.display_name)
+            f'{verb} {record.display_name}',
+            source=actor,
+            device_id=device_id,
+            device_name=record.display_name,
+        )
         return bool(locked)
 
-    def preferences(self, username: str) -> Dict[str, Any]:
+    def preferences(self, username: str) -> dict[str, Any]:
         """Returns one operator's own settings.
 
         Args:
@@ -461,8 +500,9 @@ class Application:
         """
         return self.users.preferences(username)
 
-    def set_preferences(self, username: str,
-                        changes: Dict[str, Any]) -> Dict[str, Any]:
+    def set_preferences(
+        self, username: str, changes: dict[str, Any]
+    ) -> dict[str, Any]:
         """Saves part of one operator's own settings.
 
         Preferences are not written to the activity log.  The log is a
@@ -484,7 +524,7 @@ class Application:
         _LOG.debug('preferences saved for %s', username)
         return document
 
-    def device_view(self, record: devicestore.DeviceRecord) -> Dict[str, Any]:
+    def device_view(self, record: devicestore.DeviceRecord) -> dict[str, Any]:
         """Builds the dashboard view of one device.
 
         Args:
@@ -496,7 +536,8 @@ class Application:
         """
         document = self.devices.device_document(record.device_id)
         entries, problems = schedule_lib.parse_script(
-            document.get('schedule', ''))
+            document.get('schedule', '')
+        )
         snoozed = snooze_lib.active_until(document.get('snoozed_until'))
         view = record.to_dict()
         view['display_name'] = record.display_name
@@ -507,38 +548,43 @@ class Application:
         # by editing the file, and nothing the panel can reach turns it
         # off, so there is no reason to publish it either.
         view['locked'] = bool(document.get('locked', False))
-        view['snoozed_until'] = (snoozed.isoformat(timespec='seconds')
-                                 if snoozed else '')
+        view['snoozed_until'] = (
+            snoozed.isoformat(timespec='seconds') if snoozed else ''
+        )
         view['rule_count'] = len(entries)
         view['schedule_problems'] = len(problems)
         # While snoozed, the next rule is the first one after it ends.
-        start = (snooze_lib.first_minute(snoozed)
-                 - datetime.timedelta(minutes=1)) if snoozed else None
-        view['next_runs'] = (schedule_lib.next_runs(entries, count=2,
-                                                    now=start)
-                             if document.get('schedule_enabled', True)
-                             else [])
+        start = (
+            (snooze_lib.first_minute(snoozed) - datetime.timedelta(minutes=1))
+            if snoozed
+            else None
+        )
+        view['next_runs'] = (
+            schedule_lib.next_runs(entries, count=2, now=start)
+            if document.get('schedule_enabled', True)
+            else []
+        )
         view['last_seen'] = document.get('last_seen', '')
         return view
 
-    def dashboard(self) -> Dict[str, Any]:
+    def dashboard(self) -> dict[str, Any]:
         """Builds the whole dashboard payload.
 
         Returns:
             A JSON friendly dictionary with devices, scheduler state and
             a short summary.
         """
-        views = [self.device_view(record)
-                 for record in self.devices.records()]
-        online = sum(1 for view in views
-                     if view['state'].get('reachable'))
-        switched_on = sum(1 for view in views
-                          if view['state'].get('is_on'))
+        views = [self.device_view(record) for record in self.devices.records()]
+        online = sum(1 for view in views if view['state'].get('reachable'))
+        switched_on = sum(1 for view in views if view['state'].get('is_on'))
         power = 0.0
         for view in views:
             power += float(view['state'].get('power_watts') or 0.0)
-        scheduler_state = (self.scheduler.status() if self.scheduler
-                           else {'enabled': False, 'running': False})
+        scheduler_state = (
+            self.scheduler.status()
+            if self.scheduler
+            else {'enabled': False, 'running': False}
+        )
         return {
             'devices': views,
             'summary': {
