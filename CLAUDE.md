@@ -87,8 +87,14 @@ probably needs moving too; render and look before pushing. Keep each
 diagram small -- a component diagram with a dozen boxes renders as a
 thicket, which is why the component level is six diagrams and not one.
 
+Mermaid keeps one arrow per pair of shapes: two `Rel` lines between
+the same two names render as a single arrow with the later label,
+while the step numbers count past the one that vanished. A self-loop
+counts, so a component cannot be shown doing two separate things to
+itself. `tests/test_diagrams.py` fails on that now.
+
 `tests/test_diagrams.py` catches what needs no browser: an unnamed
-block, a duplicate name, a missing C4 level. `npm run diagrams:check`
+block, a duplicate name, a duplicated pair, a missing C4 level. `npm run diagrams:check`
 is the one that actually renders.
 
 ### Two npm projects

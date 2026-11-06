@@ -17,6 +17,7 @@ download to be told they forgot a comment.
 """
 
 import os
+import re
 import sys
 import unittest
 
@@ -25,6 +26,10 @@ DOCUMENT = os.path.join(ROOT, 'docs', 'architecture.md')
 
 # The levels a C4 model is made of.  The fourth, code, is deliberately
 # absent: at that level the source is the diagram.
+# The two shape names of a relationship, however it is spelled:
+# Rel, BiRel_Up, Rel_Back and the rest all start with the same pair.
+REL = re.compile(r'^\s*(?:Bi)?Rel\w*\(\s*(\w+)\s*,\s*(\w+)\s*,', re.M)
+
 REQUIRED_DIAGRAM_TYPES = (
     'C4Context',
     'C4Container',
@@ -104,6 +109,44 @@ class DiagramTest(unittest.TestCase):
                 body,
                 r'(?m)^\s*title\s+\S',
                 f'{name} at line {line} has no title',
+            )
+
+    def test_no_diagram_draws_the_same_pair_twice(self):
+        """Mermaid keeps one relationship per pair and drops the rest.
+
+        Two `Rel` lines between the same two shapes render as a single
+        arrow carrying the later label, and the step numbers carry on
+        counting past the one that vanished.  Nothing fails: the
+        picture is simply missing a step and misnumbers the rest, which
+        is how a self-loop on `auth` silently swallowed the
+        empty-password and lockout check the prose points at.
+        """
+        for name, body, line in self.diagrams:
+            pairs = REL.findall(body)
+            seen = set()
+            for pair in pairs:
+                self.assertNotIn(
+                    pair,
+                    seen,
+                    f'{name} at line {line} draws {pair[0]} -> {pair[1]} '
+                    'twice; mermaid will render only the last of them',
+                )
+                seen.add(pair)
+
+    def test_every_step_of_a_dynamic_diagram_is_drawn(self):
+        """The numbering is only honest if every step has an arrow.
+
+        A dynamic diagram numbers its steps in source order, so a
+        dropped relationship leaves a gap the reader cannot see.
+        """
+        for name, body, line in self.diagrams:
+            if not body.lstrip().startswith('C4Dynamic'):
+                continue
+            pairs = REL.findall(body)
+            self.assertEqual(
+                len(pairs),
+                len(set(pairs)),
+                f'{name} at line {line} would lose a numbered step',
             )
 
     def test_the_prose_introduces_each_diagram(self):

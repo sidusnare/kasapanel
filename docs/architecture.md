@@ -474,13 +474,23 @@ C4Dynamic
     Rel(spa, httpd, "POST /api/session", "HTTPS")
     Rel(httpd, api, "Dispatches to sign_in")
     Rel(api, auth, "authenticate")
-    Rel(auth, auth, "Refuses empty, applies the floor and the lockout")
+    Rel(auth, auth, "Refuses empty, then the lockout and the rate limit")
     Rel(auth, helper, "One check", "socketpair")
     Rel(helper, pam, "Holds the conversation", "libpam as root")
     Rel(pam, helper, "Accepts or refuses")
     Rel(helper, auth, "Yes or no, nothing else")
-    Rel(auth, auth, "Checks the allow lists, mints a session")
-    Rel(auth, spa, "HttpOnly cookie and the token", "HTTPS")
+    Rel(auth, api, "Allow list passes; the account name")
+    Rel(api, spa, "Mints a session; the cookie and the token", "HTTPS")
+
+    UpdateRelStyle(operator, spa, $offsetX="-10", $offsetY="40")
+    UpdateRelStyle(httpd, api, $offsetX="-20", $offsetY="-50")
+    UpdateRelStyle(api, auth, $offsetX="60", $offsetY="-30")
+    UpdateRelStyle(auth, helper, $offsetX="-150", $offsetY="-40")
+    UpdateRelStyle(helper, pam, $offsetX="-200", $offsetY="-60")
+    UpdateRelStyle(pam, helper, $offsetX="150", $offsetY="40")
+    UpdateRelStyle(helper, auth, $offsetX="200", $offsetY="80")
+    UpdateRelStyle(auth, api, $offsetX="-40", $offsetY="30")
+    UpdateRelStyle(api, spa, $offsetX="30", $offsetY="-120")
 ```
 
 ### A schedule minute

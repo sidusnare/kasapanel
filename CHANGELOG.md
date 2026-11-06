@@ -30,7 +30,7 @@ invented after the fact would read as though somebody had checked them.
 ### Added
 
 - `docs/architecture.md`, a C4 model of the daemon: the system in
-  context, its containers, its components over four views, two
+  context, its containers, its components over six views, two
   sequences worth following, and the deployment. The diagrams are
   Mermaid blocks in the document itself, so GitHub renders them where
   they are read and there is no second copy to fall out of date.
