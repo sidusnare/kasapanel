@@ -57,7 +57,7 @@
       "spdxId": "urn:spdx.dev:kasapanel:package-kasapanel",
       "creationInfo": "_:creationInfo",
       "name": "kasapanel",
-      "software_packageVersion": "1.8.3",
+      "software_packageVersion": "1.8.4",
       "software_primaryPurpose": "application",
       "description": "Threaded HTTPS dashboard, control and scheduler daemon for python-kasa devices.",
       "suppliedBy": "urn:spdx.dev:kasapanel:agent-contributors",

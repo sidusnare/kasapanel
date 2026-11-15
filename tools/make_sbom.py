@@ -105,6 +105,9 @@ SKIP_DIRS = (
     'build',
     'dist',
     '.mypy_cache',
+    # ruff is this project's linter, so its cache is the one most
+    # likely to be sitting there when the SBOM is regenerated.
+    '.ruff_cache',
     '.venv',
     'node_modules',
 )

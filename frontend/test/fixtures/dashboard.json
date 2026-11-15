@@ -53,7 +53,7 @@
     "pam_available": true,
     "pam_error": "",
     "versions": {
-        "kasapanel": "1.8.3",
+        "kasapanel": "1.8.4",
         "python_kasa": "0.10.2"
     }
 }

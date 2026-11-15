@@ -27,6 +27,13 @@ invented after the fact would read as though somebody had checked them.
 
 ## [Unreleased]
 
+## [1.8.4] - 2026-11-15
+
+One fault worth having: **toggle** could send the wrong command and
+then write the wrong thing in the activity log. The rest of the
+release is documentation and the tooling that keeps it honest, so
+nothing else an operator does differs.
+
 ### Added
 
 - `docs/architecture.md`, a C4 model of the daemon: the system in
@@ -51,6 +58,12 @@ invented after the fact would read as though somebody had checked them.
   would record the opposite of what happened. Toggling now costs one
   extra round trip to the device; **switch on** and **switch off** are
   unchanged, because neither needs to know the state first.
+- `sbom.spdx.json` no longer lists ruff's cache. Thirty-eight files
+  from `.ruff_cache/` were recorded as though they were part of the
+  release, which is noise for anyone scanning the bill of materials
+  and changed from one machine to the next. The generator skipped the
+  pytest and mypy caches but not the cache belonging to the project's
+  own linter.
 
 ## [1.8.3] - 2026-11-05
 
@@ -156,7 +169,8 @@ The Source URL in pyproject.toml is still a placeholder, so they will
 resolve once the project has a real home.
 -->
 
-[Unreleased]: https://example.invalid/kasapanel/compare/v1.8.3...HEAD
+[Unreleased]: https://example.invalid/kasapanel/compare/v1.8.4...HEAD
+[1.8.4]: https://example.invalid/kasapanel/compare/v1.8.3...v1.8.4
 [1.8.3]: https://example.invalid/kasapanel/compare/v1.8.2...v1.8.3
 [1.8.2]: https://example.invalid/kasapanel/compare/v1.8.1...v1.8.2
 [1.8.1]: https://example.invalid/kasapanel/compare/v1.8.0...v1.8.1
