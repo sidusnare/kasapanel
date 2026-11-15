@@ -41,6 +41,17 @@ invented after the fact would read as though somebody had checked them.
 - `npm run diagrams` and `npm run diagrams:check` for the same job
   locally, through `tools/render_diagrams.py`.
 
+### Fixed
+
+- **Toggle** asks the device what state it is in before inverting it,
+  instead of trusting the last poll. A plug switched at the wall, in
+  the vendor's own app or from a second browser could be toggled the
+  wrong way — the panel would send the command the stale reading
+  called for, the plug would stay as it was, and the activity log
+  would record the opposite of what happened. Toggling now costs one
+  extra round trip to the device; **switch on** and **switch off** are
+  unchanged, because neither needs to know the state first.
+
 ## [1.8.3] - 2026-11-05
 
 A housekeeping release: no behaviour changes, so nothing an operator

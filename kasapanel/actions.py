@@ -201,6 +201,14 @@ async def _run_off(device: Any, values: tuple[Any, ...]) -> str:
 async def _run_toggle(device: Any, values: tuple[Any, ...]) -> str:
     """Inverts the current on/off state of the device.
 
+    The state is polled first rather than read from whatever the last
+    update left cached.  A plug switched by hand, by the vendor's own
+    app or by another panel since that poll would otherwise be toggled
+    the wrong way, and the activity log would record the opposite of
+    what happened.  This is the only action that reads the device
+    before writing to it; the rest send a command and do not care what
+    the state was.
+
     Args:
         device: A python-kasa device object.
         values: Unused.
@@ -209,6 +217,7 @@ async def _run_toggle(device: Any, values: tuple[Any, ...]) -> str:
         A short report of what happened.
     """
     del values
+    await device.update()
     if device.is_on:
         await device.turn_off()
         return 'toggled off'

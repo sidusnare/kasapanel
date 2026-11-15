@@ -6,10 +6,64 @@
 # AI usage declaration: docs/ai-bom.spdx.json
 """Tests for :mod:`kasapanel.schedule` and :mod:`kasapanel.actions`."""
 
+import asyncio
 import datetime
 import unittest
+from collections.abc import Callable
+from typing import Any
 
 from kasapanel import actions, schedule
+
+
+class FakeDevice:
+    """A python-kasa device stub that records the order of calls.
+
+    Only the handful of members the actions touch are provided.  The
+    order matters as much as the result: a toggle that reads before it
+    polls is wrong even when the cached answer happens to be right, so
+    the tests assert on :attr:`calls` rather than only on the report.
+    """
+
+    def __init__(
+        self,
+        is_on: bool = False,
+        on_update: Callable[['FakeDevice'], None] | None = None,
+    ):
+        """Initialises the stub.
+
+        Args:
+            is_on: The state the device starts out believing.
+            on_update: Called by :meth:`update` to stand in for the
+                world having moved on since the last poll.
+        """
+        self.is_on = is_on
+        self.calls: list[str] = []
+        self._on_update = on_update
+
+    async def update(self) -> None:
+        """Polls the device, applying whatever changed underneath."""
+        self.calls.append('update')
+        if self._on_update is not None:
+            self._on_update(self)
+
+    async def turn_on(self) -> None:
+        """Switches the device on."""
+        self.calls.append('turn_on')
+        self.is_on = True
+
+    async def turn_off(self) -> None:
+        """Switches the device off."""
+        self.calls.append('turn_off')
+        self.is_on = False
+
+    def modules(self) -> dict[str, Any]:
+        """Returns no optional modules.
+
+        Returns:
+            An empty mapping; this stub is a plain switch.
+        """
+        return {}
+
 
 SCRIPT = '\n'.join(
     (
@@ -100,6 +154,58 @@ class ParseTest(unittest.TestCase):
         for entry in entries:
             self.assertTrue(entry['usage'])
             self.assertTrue(entry['summary'].endswith('.'))
+
+
+class RunActionTest(unittest.TestCase):
+    """Running an action against a device."""
+
+    def test_toggle_polls_before_it_decides(self):
+        """A stale cache would invert the wrong state.
+
+        The device is the authority on whether it is on.  If the plug
+        was switched by hand since the last poll, toggling on the
+        cached answer turns it the way it already went and the
+        activity log records the opposite of what happened.
+        """
+        device = FakeDevice(
+            is_on=False, on_update=lambda d: setattr(d, 'is_on', True)
+        )
+        report = asyncio.run(actions.execute(device, 'toggle', []))
+        self.assertEqual(report, 'toggled off')
+        self.assertEqual(device.calls[:2], ['update', 'turn_off'])
+
+    def test_toggle_reads_the_device_not_the_cache(self):
+        """Both directions, with the poll in front of the decision."""
+        for cached, fresh, report, command in (
+            (True, False, 'toggled on', 'turn_on'),
+            (False, True, 'toggled off', 'turn_off'),
+            (False, False, 'toggled on', 'turn_on'),
+            (True, True, 'toggled off', 'turn_off'),
+        ):
+            with self.subTest(cached=cached, fresh=fresh):
+                device = FakeDevice(
+                    is_on=cached,
+                    on_update=lambda d, fresh=fresh: setattr(d, 'is_on', fresh),
+                )
+                self.assertEqual(
+                    asyncio.run(actions.execute(device, 'toggle', [])), report
+                )
+                self.assertEqual(device.calls[0], 'update')
+                self.assertIn(command, device.calls)
+
+    def test_the_other_switches_do_not_poll_first(self):
+        """on and off need no reading, so they cost no extra round trip."""
+        for action, command in (('on', 'turn_on'), ('off', 'turn_off')):
+            with self.subTest(action=action):
+                device = FakeDevice(is_on=False)
+                asyncio.run(actions.execute(device, action, []))
+                self.assertEqual(device.calls[0], command)
+
+    def test_every_action_leaves_the_state_fresh(self):
+        """execute polls afterwards so the log records what is true."""
+        device = FakeDevice(is_on=False)
+        asyncio.run(actions.execute(device, 'on', []))
+        self.assertEqual(device.calls[-1], 'update')
 
 
 if __name__ == '__main__':
