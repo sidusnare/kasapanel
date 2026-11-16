@@ -27,6 +27,12 @@ invented after the fact would read as though somebody had checked them.
 
 ## [Unreleased]
 
+## [1.8.5] - 2026-11-15
+
+Housekeeping, with no behaviour change: nothing an operator does
+differs from 1.8.4. The project's links now point at where it
+actually lives, and a release leaves its rendered diagrams behind.
+
 ### Fixed
 
 - The links in this file, and the project URLs in the package
@@ -180,7 +186,8 @@ the tree and fixes two faults that the policy's linters found.
 - A dark theme, chosen per operator and remembered with their card
   order.
 
-[Unreleased]: https://github.com/sidusnare/kasapanel/compare/v1.8.4...HEAD
+[Unreleased]: https://github.com/sidusnare/kasapanel/compare/v1.8.5...HEAD
+[1.8.5]: https://github.com/sidusnare/kasapanel/compare/v1.8.4...v1.8.5
 [1.8.4]: https://github.com/sidusnare/kasapanel/compare/v1.8.3...v1.8.4
 [1.8.3]: https://github.com/sidusnare/kasapanel/compare/v1.8.2...v1.8.3
 [1.8.2]: https://github.com/sidusnare/kasapanel/compare/v1.8.1...v1.8.2

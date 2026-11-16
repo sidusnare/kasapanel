@@ -28,7 +28,7 @@ its own:
 # derives it from here: pyproject.toml through setuptools' dynamic
 # metadata, the SBOM tools by importing it, and the browser bundle
 # through the dashboard payload.  See tests/test_version.py.
-__version__ = '1.8.4'
+__version__ = '1.8.5'
 __license__ = 'GPL-3.0-or-later'
 
 APP_NAME = 'kasapanel'
