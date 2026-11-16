@@ -11,7 +11,7 @@
 version = 1
 SPDX-PackageName = "kasapanel"
 SPDX-PackageSupplier = "Kasa Panel contributors"
-SPDX-PackageDownloadLocation = "NOASSERTION"
+SPDX-PackageDownloadLocation = "https://github.com/sidusnare/kasapanel"
 
 # JSON has no comment syntax.
 [[annotations]]

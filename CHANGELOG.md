@@ -33,6 +33,11 @@ invented after the fact would read as though somebody had checked them.
   metadata, point at the repository instead of `example.invalid`. They
   were placeholders written before the project had a home, so every
   comparison link in this file led nowhere.
+- The bill of materials says where the software comes from. Both
+  `sbom.spdx.json` and `REUSE.toml` recorded the download location as
+  `NOASSERTION`, which is the SPDX way of saying nobody stated one; a
+  scanner reading either had no way back to the source. The SBOM also
+  carries the project's home page now.
 - A release always leaves rendered diagrams behind. The workflow only
   ran when a push touched the architecture document or its tooling, so
   a version tag whose commit touched neither produced no images at

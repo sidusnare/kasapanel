@@ -93,7 +93,13 @@ def npm_version(name: str, project: str = 'frontend') -> str:
 
 
 PACKAGE_VERSION = read_version()
-DOCUMENT_NAMESPACE = f'https://github.com/sidusnare/kasapanel/spdx/{PACKAGE_NAME}-{PACKAGE_VERSION}'
+HOMEPAGE = 'https://github.com/sidusnare/kasapanel'
+# No tag is named here.  The SBOM is regenerated before the release is
+# tagged, so a URL ending in the new version would point at something
+# that does not exist yet; versionInfo already says which release this
+# is.
+DOWNLOAD_LOCATION = f'git+{HOMEPAGE}.git'
+DOCUMENT_NAMESPACE = f'{HOMEPAGE}/spdx/{PACKAGE_NAME}-{PACKAGE_VERSION}'
 
 # Directories and files that are not part of what we ship.
 SKIP_DIRS = (
@@ -427,7 +433,8 @@ def build_document(root: str) -> dict[str, Any]:
             'SPDXID': f'SPDXRef-Package-{PACKAGE_NAME}',
             'name': PACKAGE_NAME,
             'versionInfo': PACKAGE_VERSION,
-            'downloadLocation': 'NOASSERTION',
+            'downloadLocation': DOWNLOAD_LOCATION,
+            'homepage': HOMEPAGE,
             'filesAnalyzed': True,
             'packageVerificationCode': {
                 'packageVerificationCodeValue': verification_code(sha1_digests),
