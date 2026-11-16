@@ -27,6 +27,18 @@ invented after the fact would read as though somebody had checked them.
 
 ## [Unreleased]
 
+### Fixed
+
+- The links in this file, and the project URLs in the package
+  metadata, point at the repository instead of `example.invalid`. They
+  were placeholders written before the project had a home, so every
+  comparison link in this file led nowhere.
+- A release always leaves rendered diagrams behind. The workflow only
+  ran when a push touched the architecture document or its tooling, so
+  a version tag whose commit touched neither produced no images at
+  all. The artifact is now named after the tag or branch as well as
+  the commit, so the one belonging to a release can be found.
+
 ## [1.8.4] - 2026-11-15
 
 One fault worth having: **toggle** could send the wrong command and
@@ -163,15 +175,9 @@ the tree and fixes two faults that the policy's linters found.
 - A dark theme, chosen per operator and remembered with their card
   order.
 
-<!--
-The comparison links below follow the repository host's usual form.
-The Source URL in pyproject.toml is still a placeholder, so they will
-resolve once the project has a real home.
--->
-
-[Unreleased]: https://example.invalid/kasapanel/compare/v1.8.4...HEAD
-[1.8.4]: https://example.invalid/kasapanel/compare/v1.8.3...v1.8.4
-[1.8.3]: https://example.invalid/kasapanel/compare/v1.8.2...v1.8.3
-[1.8.2]: https://example.invalid/kasapanel/compare/v1.8.1...v1.8.2
-[1.8.1]: https://example.invalid/kasapanel/compare/v1.8.0...v1.8.1
-[1.8.0]: https://example.invalid/kasapanel/releases/tag/v1.8.0
+[Unreleased]: https://github.com/sidusnare/kasapanel/compare/v1.8.4...HEAD
+[1.8.4]: https://github.com/sidusnare/kasapanel/compare/v1.8.3...v1.8.4
+[1.8.3]: https://github.com/sidusnare/kasapanel/compare/v1.8.2...v1.8.3
+[1.8.2]: https://github.com/sidusnare/kasapanel/compare/v1.8.1...v1.8.2
+[1.8.1]: https://github.com/sidusnare/kasapanel/compare/v1.8.0...v1.8.1
+[1.8.0]: https://github.com/sidusnare/kasapanel/releases/tag/v1.8.0

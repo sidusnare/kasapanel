@@ -19,6 +19,10 @@ name: diagrams
 'on':
   push:
     branches: [main]
+    # A release must leave a render behind even when the commit it
+    # points at touched none of the paths below: GitHub does not
+    # evaluate path filters for pushes of tags, so this always runs.
+    tags: ['v*']
     paths:
       - docs/architecture.md
       - tools/render_diagrams.py
@@ -84,7 +88,7 @@ jobs:
       - name: Upload the images
         uses: actions/upload-artifact@v7
         with:
-          name: c4-diagrams-${{ github.sha }}
+          name: c4-diagrams-${{ github.ref_name }}-${{ github.sha }}
           path: build/diagrams/
           if-no-files-found: error
           retention-days: 30

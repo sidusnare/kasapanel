@@ -93,9 +93,7 @@ def npm_version(name: str, project: str = 'frontend') -> str:
 
 
 PACKAGE_VERSION = read_version()
-DOCUMENT_NAMESPACE = (
-    f'https://example.invalid/kasapanel/spdx/{PACKAGE_NAME}-{PACKAGE_VERSION}'
-)
+DOCUMENT_NAMESPACE = f'https://github.com/sidusnare/kasapanel/spdx/{PACKAGE_NAME}-{PACKAGE_VERSION}'
 
 # Directories and files that are not part of what we ship.
 SKIP_DIRS = (

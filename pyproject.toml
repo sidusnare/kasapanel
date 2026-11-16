@@ -47,8 +47,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://example.invalid/kasapanel"
-Source = "https://example.invalid/kasapanel"
+Homepage = "https://github.com/sidusnare/kasapanel"
+Source = "https://github.com/sidusnare/kasapanel"
+Changelog = "https://github.com/sidusnare/kasapanel/blob/main/CHANGELOG.md"
+Issues = "https://github.com/sidusnare/kasapanel/issues"
 
 [project.scripts]
 kasapanel = "kasapanel.cli:main"
